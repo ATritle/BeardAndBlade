@@ -1,5 +1,14 @@
 # Campaign build validation — September 21, 2026
 
+## Audio and standalone Windows playtest
+
+- Added/imported 19 SoundWave assets (three looping scores, sixteen effects); deterministic synthesis source and peak/RMS metadata included. WAV peaks are normalized below full scale. No subjective listening approval is claimed.
+- Development Editor and Win64 Shipping compiled successfully. BuildCookRun completed build, cook, stage and archive with exit 0; final cook had no errors.
+- Actual packaged Shipping EXE ran with `-DungeonSmokeTest` and exited 0. Result: `PACKAGED_SMOKE errors=0; audio assets=19; menu->game; tea cooldown; music component playing`. Standalone menu and gameplay screenshot captures were inspected. This tests the packaged binary, not editor Play mode.
+- Existing in-engine campaign suite also reported `DUNGEON_CAMPAIGN_VERIFY_COMPLETE errors=0` after audio integration.
+- Windows archive includes launcher, game executable, cooked content, libraries and prerequisites; excludes debug symbols and user save/config data. ZIP integrity and SHA-256 are checked by `Tools/zip_release.py`.
+- Public repository excludes raw reference/source artwork, caches, logs, binaries and local authentication. Android development file-server plugin is disabled; its local token was removed before publication.
+
 ## Tea & Finance update
 
 - Development Editor module rebuilt and linked successfully after the final code changes.
