@@ -1,0 +1,116 @@
+{
+  "MusicMenu": {
+    "seconds": 25.26315625,
+    "peak": 0.72,
+    "rms": 0.16380059252998427,
+    "loop": true
+  },
+  "MusicDungeon": {
+    "seconds": 28.23528125,
+    "peak": 0.72,
+    "rms": 0.19766802277463968,
+    "loop": true
+  },
+  "MusicBoss": {
+    "seconds": 18.46153125,
+    "peak": 0.72,
+    "rms": 0.1882064254326315,
+    "loop": true
+  },
+  "Sword": {
+    "seconds": 0.28,
+    "peak": 0.78,
+    "rms": 0.13798404679444068,
+    "loop": false
+  },
+  "Roll": {
+    "seconds": 0.42,
+    "peak": 0.78,
+    "rms": 0.1019208904047452,
+    "loop": false
+  },
+  "Hit": {
+    "seconds": 0.24,
+    "peak": 0.78,
+    "rms": 0.09030767771161571,
+    "loop": false
+  },
+  "Explosion": {
+    "seconds": 0.85,
+    "peak": 0.78,
+    "rms": 0.10084283215030858,
+    "loop": false
+  },
+  "TeaSplash": {
+    "seconds": 0.65,
+    "peak": 0.78,
+    "rms": 0.10058347988910121,
+    "loop": false
+  },
+  "Throw": {
+    "seconds": 0.24,
+    "peak": 0.78,
+    "rms": 0.11436727985140273,
+    "loop": false
+  },
+  "Paper": {
+    "seconds": 0.34,
+    "peak": 0.78,
+    "rms": 0.0889370369388703,
+    "loop": false
+  },
+  "Magic": {
+    "seconds": 0.5,
+    "peak": 0.78,
+    "rms": 0.18466906704839,
+    "loop": false
+  },
+  "Step": {
+    "seconds": 0.13,
+    "peak": 0.78,
+    "rms": 0.12247177511014923,
+    "loop": false
+  },
+  "Hurt": {
+    "seconds": 0.35,
+    "peak": 0.78,
+    "rms": 0.1451970188696669,
+    "loop": false
+  },
+  "Death": {
+    "seconds": 0.85,
+    "peak": 0.78,
+    "rms": 0.10251582745381818,
+    "loop": false
+  },
+  "Chest": {
+    "seconds": 0.9,
+    "peak": 0.78,
+    "rms": 0.20635084056094427,
+    "loop": false
+  },
+  "Equip": {
+    "seconds": 0.2,
+    "peak": 0.78,
+    "rms": 0.10151261387508409,
+    "loop": false
+  },
+  "Portal": {
+    "seconds": 0.65,
+    "peak": 0.78,
+    "rms": 0.1585606545512332,
+    "loop": false
+  },
+  "UI": {
+    "seconds": 0.12,
+    "peak": 0.78,
+    "rms": 0.12170706005231552,
+    "loop": false
+  },
+  "Spawn": {
+    "seconds": 0.45,
+    "peak": 0.78,
+    "rms": 0.19246735715860874,
+    "loop": false
+  }
+}

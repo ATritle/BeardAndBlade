@@ -1,0 +1,19 @@
+/Binaries/
+/Intermediate/
+/Saved/
+/DerivedDataCache/
+/Builds/
+/.vs/
+*.sln
+*.suo
+*.VC.db
+# Source-generation sheets, local review captures and input references stay private.
+/ArtSource/
+/Content/Art/**/*.png
+/Content/Audio/*.wav
+*.log
+*.pdb
+.env*
+*.pem
+__pycache__/
+*.pyc

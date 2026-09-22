@@ -1,0 +1,7 @@
+param([string]$Engine='C:/Program Files/Epic Games/UE_5.8',[string]$Destination='')
+$projectRoot=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+if(!$Destination) { $Destination=Join-Path $projectRoot 'Builds/Release' }
+$env:uebp_EngineSavedFolder=Join-Path $projectRoot 'Saved/Automation'
+& "$Engine/Engine/Build/BatchFiles/RunUAT.bat" BuildCookRun "-project=$projectRoot/BeardAndBlade.uproject" -noP4 -platform=Win64 -clientconfig=Shipping -build -cook -stage -pak -iostore -archive "-archivedirectory=$Destination" -prereqs -nodebuginfo -utf8output -unattended
+if($LASTEXITCODE -ne 0) { throw "Unreal packaging failed: $LASTEXITCODE" }
+Write-Output "Package ready in $Destination. Distribute the whole Windows folder, not only the EXE."
