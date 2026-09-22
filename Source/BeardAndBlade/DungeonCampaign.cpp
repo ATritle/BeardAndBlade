@@ -42,7 +42,7 @@ void ADungeonEnemy::Tick(float Dt)
         SetActorLocation(DungeonView::Unproject(Next)); bWalking=true;
         const FVector2D Segment=Next-P;
         const float T=Segment.IsNearlyZero()?0:FMath::Clamp(FVector2D::DotProduct(Target-P,Segment)/Segment.SizeSquared(),0.,1.);
-        if(FVector2D::Distance(P+Segment*T,Target)<(bBoss?48:30)) H->ReceiveHit(S.Damage);
+        if(FVector2D::Distance(P+Segment*T,Target)<(bBoss?48:30)) H->ReceiveHit(S.Damage*1.32f);
         return;
     }
     if(Windup>0)
@@ -77,6 +77,7 @@ int32 ADungeonEnemy::AnimationFrame() const
 }
 void ADungeonGameMode::FireAttack(ADungeonEnemy* E)
 {
+    if(IsGameplayBlocked()) return;
     auto* H=Cast<ADungeonHero>(UGameplayStatics::GetPlayerPawn(this,0)); if(!H||!IsValid(E)) return;
     const auto& S=DungeonRoster::Get(E->Species);
     PlaySound(E->Species==24?TEXT("Paper"):S.AttackStyle==0?TEXT("Sword"):S.AttackStyle==4?TEXT("Explosion"):S.AttackStyle==2?TEXT("Roll"):TEXT("Magic"),.65f);
@@ -86,7 +87,7 @@ void ADungeonGameMode::FireAttack(ADungeonEnemy* E)
     {
         const float Radius=S.AttackStyle==4?(E->bBoss?145.f:S.Range):S.Range;
         FVector2D Delta=DungeonView::Project(H->GetActorLocation())-E->AttackTarget; Delta.Y/=.65f;
-        if(Delta.Size()<Radius) H->ReceiveHit(S.Damage);
+        if(Delta.Size()<Radius) H->ReceiveHit(S.Damage*1.32f);
         AddImpact(E->AttackTarget,0,true);
         if(E->Species!=27) return; // The forge boss also throws a radial ember burst.
     }
@@ -99,7 +100,7 @@ void ADungeonGameMode::FireAttack(ADungeonEnemy* E)
     for(int I=0;I<Count;++I)
     {
         float A=Ring?I*2*PI/Count:Base+(I-(Count-1)*.5f)*.18f;
-        FDungeonShot Shot; Shot.Position=P; Shot.Style=S.AttackStyle; Shot.Damage=S.Damage;
+        FDungeonShot Shot; Shot.Position=P; Shot.Style=S.AttackStyle; Shot.Damage=S.Damage*1.32f;
         Shot.Radius=S.AttackStyle==5?12:8;
         Shot.Velocity=FVector2D(FMath::Cos(A),FMath::Sin(A))*(S.AttackStyle==5?125.f:190.f);
         Shot.Art=E->Species==1?3:E->Species==3||E->Species==16?14:
@@ -121,6 +122,32 @@ void ADungeonGameMode::VerifyCampaign()
     Check(H!=nullptr,TEXT("Hero exists")); if(!H) { FPlatformMisc::RequestExitWithStatus(false,1);return; }
     Check(bMenu&&PendingSpawns==0,TEXT("Starts at menu with no combat"));
     StartGame(); Check(!bMenu&&PendingSpawns>0,TEXT("Start menu begins run"));
+    bool SeenLoot[9]={false};
+    for(int I=0;I<1000;++I) { const auto Item=RollChestLoot(false); SeenLoot[Item.Icon]=true; }
+    for(bool Seen:SeenLoot) Check(Seen,TEXT("Mystery pool includes all weapons, armor and amulets"));
+    for(int I=0;I<30;++I) Check(RollChestLoot(true).Rarity==4,TEXT("Boss mystery loot remains legendary"));
+    H->MoveRight(1); H->SprintPressed(); H->Tick(.1f); H->MoveRight(0); H->SprintReleased();
+    Check(FMath::IsNearlyEqual(H->Stamina,97.5f),TEXT("Sprint drains stamina"));
+    const float IdleStamina=H->Stamina; H->SprintPressed(); H->Tick(.1f); H->SprintReleased();
+    Check(H->Stamina==IdleStamina,TEXT("Stationary shift does not consume stamina"));
+    H->Restart(); H->Dodge(); Check(H->Stamina==70,TEXT("Dodge costs thirty stamina"));
+    H->Restart(); H->SpendStamina(100); H->Dodge();
+    Check(H->bExhausted&&!H->IsRolling(),TEXT("Empty stamina blocks dodge"));
+    const auto ExhaustedStart=DungeonView::Project(H->GetActorLocation());
+    H->SprintPressed(); H->MoveRight(1); H->Tick(.1f); H->MoveRight(0); H->SprintReleased();
+    Check(FMath::IsNearlyEqual(float(DungeonView::Project(H->GetActorLocation()).X-ExhaustedStart.X),19.f,.01f),TEXT("Exhausted sprint falls back to walking"));
+    H->Tick(2.f); Check(H->bExhausted&&H->Stamina>0&&H->Stamina<100,TEXT("Partial refill keeps exhaustion lock"));
+    ToggleMenu(); const float PausedStamina=H->Stamina; H->Tick(10); ToggleMenu();
+    Check(H->Stamina==PausedStamina,TEXT("Menu pauses stamina regeneration"));
+    H->Tick(4.f); Check(!H->bExhausted&&H->Stamina==100,TEXT("Full refill unlocks mobility"));
+    H->Restart(); H->Stamina=29; H->Dodge(); Check(!H->IsRolling()&&H->Stamina==29,TEXT("Insufficient dodge cost rejected"));
+    H->Restart();
+    FDungeonPotion TestPotion; TestPotion.Position=DungeonView::Project(H->GetActorLocation()); Potions.Add(TestPotion);
+    UpdatePotions(1); Check(Potions.Num()==1,TEXT("Full health preserves potion"));
+    H->Health=50; UpdatePotions(.1f);
+    Check(Potions.IsEmpty()&&H->Health==102.5f,TEXT("Walk-over potion restores thirty-five percent"));
+    Potions.Add(TestPotion); UpdatePotions(1); Check(H->Health==150&&Potions.IsEmpty(),TEXT("Potion clamps to max health"));
+    H->Restart();
     H->MoveForward(1); auto P=DungeonView::Project(H->GetActorLocation()); H->Tick(.1f); H->MoveForward(0);
     Check(DungeonView::Project(H->GetActorLocation()).Y<P.Y,TEXT("W is screen-up"));
     H->Dodge(); const float HP=H->Health; H->ReceiveHit(100); Check(H->Health==HP&&H->IsRolling(),TEXT("Dodge has invulnerability"));
@@ -147,9 +174,26 @@ void ADungeonGameMode::VerifyCampaign()
         while(!bChest&&++Guard<20)
         {
             while(PendingSpawns>0) { SpawnOneEnemy(); --PendingSpawns; }
-            if(IsBossRoom()) Check(Enemies.Num()==1&&Enemies[0]->Species==24+GetBiome(),TEXT("Correct unique boss"));
+            if(IsBossRoom())
+            {
+                Check(Enemies.Num()==1&&Enemies[0]->Species==24+GetBiome(),TEXT("Correct unique boss"));
+                Check(IsBossDialogueActive()&&IsGameplayBlocked(),TEXT("Boss introduction blocks combat"));
+                const float BossHP=Enemies[0]->Health,HeroHP=H->Health;
+                const FVector HeroPos=H->GetActorLocation(),BossPos=Enemies[0]->GetActorLocation();
+                H->MoveRight(1); H->Tick(.2f); H->MoveRight(0); Enemies[0]->Tick(.2f);
+                H->ReceiveHit(100); Enemies[0]->TakeDungeonDamage(100); H->PowerMove(); H->Dodge();
+                Check(H->Health==HeroHP&&Enemies[0]->Health==BossHP&&H->GetActorLocation().Equals(HeroPos)&&Enemies[0]->GetActorLocation().Equals(BossPos),TEXT("Conversation freezes movement and damage"));
+                AdvanceBossDialogue(); Check(DialogueIndex==0,TEXT("Initial settling delay blocks accidental click"));
+                Tick(.9f);
+                if(R==8) AdvanceBossDialogue(true);
+                else while(IsBossDialogueActive()) { AdvanceBossDialogue(); Tick(.2f); }
+                Check(!IsBossDialogueActive()&&IsGameplayBlocked(),TEXT("Closing dialogue provides combat grace"));
+                H->Attack(); Check(!H->IsAttacking(),TEXT("Closing grace cannot trigger sword"));
+                Tick(.8f); Check(!IsGameplayBlocked(),TEXT("Battle starts after dialogue"));
+            }
             const auto Batch=Enemies;
             for(auto& E:Batch) { E->SpawnTime=0; E->TakeDungeonDamage(100000); }
+            if(IsBossRoom()) Check(!Potions.IsEmpty(),TEXT("Boss guarantees potion drop"));
         }
         Check(bChest&&Enemies.IsEmpty(),TEXT("Clear spawns chest choices"));
         if(R==1)
@@ -162,12 +206,12 @@ void ADungeonGameMode::VerifyCampaign()
         H->Inventory.Empty(); const int Choice=(R-1)%3;
         H->SetActorLocation(DungeonView::Unproject(ChestPosition(Choice)));
         const float ATK=H->AttackPower; PlayerInteract(H);
-        Check(H->Inventory.Num()==1&&H->Inventory[0].Item.Slot==Choice,TEXT("Chosen chest category enters inventory"));
+        Check(H->Inventory.Num()==1&&H->Inventory[0].Item.Icon==ChestLoot[Choice].Icon&&H->Inventory[0].Item.Rarity==ChestLoot[Choice].Rarity,TEXT("Chosen random chest item enters inventory"));
         Check(!bChest&&bLootClaimed&&H->AttackPower==ATK,TEXT("Other chests vanish without auto-equip"));
         PlayerInteract(H); Check(H->Inventory.Num()==1,TEXT("No second chest reward"));
         TransitionCooldown=0; H->SetActorLocation(DungeonView::Unproject(DoorPosition(Choice))); PlayerInteract(H);
         Check(IsTransitioning()&&Room==R,TEXT("Gate starts transition, not instant teleport"));
-        Tick(2.1f); Check(Room==R+1&&!IsTransitioning(),TEXT("Transition finishes in next room"));
+        Tick(2.1f); Check(Room==R+1&&!IsTransitioning()&&Potions.IsEmpty(),TEXT("Transition finishes and clears old potions"));
     }
     H->Inventory.Empty(); for(int I=0;I<18;++I) Check(H->AddToInventory(MakeItem(0,0)),TEXT("Weapon bag capacity"));
     Check(!H->AddToInventory(MakeItem(0,0))&&H->EquipFromInventory(0),TEXT("Full bag swaps safely"));

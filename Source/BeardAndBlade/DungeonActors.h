@@ -29,6 +29,7 @@ struct FDungeonItem
     bool IsEmpty() const { return Name.IsEmpty(); }
 };
 struct FDungeonBagEntry { FDungeonItem Item; FIntPoint Cell; };
+struct FDungeonPotion { FVector2D Position; float Age=0; };
 struct FDungeonImpact
 {
     FVector2D Position;
@@ -66,11 +67,18 @@ public:
     void SprintPressed() { bSprinting=true; }
     void SprintReleased() { bSprinting=false; }
     void Attack();
+    void CancelCombatActions();
+    FString AttackQuip;
+    float QuipTime=0,QuipCooldown=0;
     void PowerMove();
     bool IsCasting() const { return PowerCastTime>0; }
     float GetPowerCooldown() const { return PowerCooldown; }
     float GetCastProgress() const { return 1.f-PowerCastTime/.48f; }
     void Dodge();
+    float Stamina=100,MaxStamina=100;
+    bool bExhausted=false;
+    void UpdateStamina(float Dt,bool Sprinting);
+    void SpendStamina(float Amount);
     void Menu();
     void ToggleMusic();
     void ToggleEffects();
@@ -108,6 +116,7 @@ public:
 private:
     float InputX=0,InputY=0,WalkDistance=0,AttackTime=0,Invulnerable=0;
     float RollTime=0,RollCooldown=0;
+    float StaminaDelay=0;
     float PowerCooldown=0,PowerCastTime=0;
     int32 PowerDirection=4;
     FVector2D PowerAim=FVector2D(0,1),PowerTarget;
@@ -174,10 +183,20 @@ public:
     void UpdateProjectiles(float Dt);
     void ResolveProjectile(const FDungeonShot& Shot,FVector2D Position);
     const TArray<FDungeonSplash>& GetSplashes() const { return Splashes; }
+    const TArray<FDungeonPotion>& GetPotions() const { return Potions; }
+    void UpdatePotions(float Dt);
     bool IsMenu() const { return bMenu; }
     bool HasRun() const { return bHasRun; }
     bool IsTransitioning() const { return TransitionTime>0; }
-    bool IsGameplayBlocked() const { return bMenu||IsTransitioning(); }
+    bool IsGameplayBlocked() const { return bMenu||IsTransitioning()||IsBossDialogueActive()||BossGrace>0; }
+    bool IsBossDialogueActive() const { return DialogueIndex<DialogueLines.Num(); }
+    void BeginBossDialogue();
+    void AdvanceBossDialogue(bool Skip=false);
+    const FString& GetDialogueLine() const { return DialogueLines[DialogueIndex]; }
+    FString GetDialogueSpeaker() const;
+    int32 GetDialogueIndex() const { return DialogueIndex; }
+    int32 GetDialogueCount() const { return DialogueLines.Num(); }
+    bool CanAdvanceDialogue() const { return DialogueWait<=0; }
     float TransitionProgress() const { return 1.f-TransitionTime/2.f; }
     int32 GetBiome() const { return ((Room-1)/4)%4; }
     bool bShowControls=false;
@@ -195,9 +214,13 @@ public:
     const FDungeonItem& GetLoot() const { return Loot; }
     const TArray<FDungeonImpact>& GetImpacts() const { return Impacts; }
     static FDungeonItem MakeItem(int32 Icon,int32 Rarity);
+    static FDungeonItem RollChestLoot(bool Boss);
     static FVector2D DoorPosition(int32 I) { return FVector2D(345+I*295,216); }
     static FVector2D ChestPosition(int32 I) { return FVector2D(390+I*250,440); }
 private:
+    TArray<FString> DialogueLines;
+    int32 DialogueIndex=0;
+    float DialogueWait=0,BossGrace=0;
     void SpawnWave();
     void SpawnOneEnemy();
     void NextRoom();
@@ -222,6 +245,7 @@ private:
     TArray<FDungeonShot> Shots;
     TArray<FDungeonSplash> Splashes;
     TArray<FDungeonImpact> Impacts;
+    TArray<FDungeonPotion> Potions;
 };
 UCLASS()
 class BEARDANDBLADE_API ADungeonHUD : public AHUD
@@ -230,7 +254,12 @@ class BEARDANDBLADE_API ADungeonHUD : public AHUD
 public:
     virtual void DrawHUD() override;
     void InventoryClick();
+    void DialogueClick();
 private:
+    void DrawDialogue(ADungeonGameMode* G,ADungeonHero* H);
+    void DrawVitals(ADungeonHero* H);
+    void DrawPotions(ADungeonGameMode* G);
+    void Orb(FVector2D Center,float Fraction,FLinearColor Color);
     void DrawInventory(ADungeonHero* H);
     void DrawMenu(ADungeonGameMode* G);
     UTexture2D* Texture(const FString& Name);

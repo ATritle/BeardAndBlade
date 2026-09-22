@@ -4,4 +4,7 @@ if(!$Destination) { $Destination=Join-Path $projectRoot 'Builds/Release' }
 $env:uebp_EngineSavedFolder=Join-Path $projectRoot 'Saved/Automation'
 & "$Engine/Engine/Build/BatchFiles/RunUAT.bat" BuildCookRun "-project=$projectRoot/BeardAndBlade.uproject" -noP4 -platform=Win64 -clientconfig=Shipping -build -cook -stage -pak -iostore -archive "-archivedirectory=$Destination" -prereqs -nodebuginfo -utf8output -unattended
 if($LASTEXITCODE -ne 0) { throw "Unreal packaging failed: $LASTEXITCODE" }
+$brandOutput=Join-Path $Destination 'Windows/Branding'
+New-Item -ItemType Directory -Force $brandOutput | Out-Null
+Copy-Item -LiteralPath (Join-Path $projectRoot 'Branding/Icon.png'),(Join-Path $projectRoot 'Branding/Logo.png'),(Join-Path $projectRoot 'Branding/PROMPTS.md') -Destination $brandOutput
 Write-Output "Package ready in $Destination. Distribute the whole Windows folder, not only the EXE."

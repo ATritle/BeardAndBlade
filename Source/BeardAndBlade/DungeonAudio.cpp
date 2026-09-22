@@ -53,6 +53,51 @@ void ADungeonHero::ToggleEffects() { if(auto* G=Cast<ADungeonGameMode>(UGameplay
 // Explicit unattended release check; absent this flag it never alters gameplay.
 void ADungeonGameMode::RunPackagedSmokeTest()
 {
+    if(FParse::Param(FCommandLine::Get(),TEXT("DungeonVitalsPreview")))
+    {
+        static int Stage=0; const float T=GetWorld()->GetTimeSeconds();
+        auto* H=Cast<ADungeonHero>(UGameplayStatics::GetPlayerPawn(this,0));
+        if(Stage==0&&T>2&&H)
+        {
+            StartGame(); PendingSpawns=0; H->Health=85; H->SpendStamina(65);
+            FDungeonPotion P; P.Position=FVector2D(760,530); Potions.Add(P); ++Stage;
+        }
+        if(Stage==1&&T>2.3f) { FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir()/TEXT("Screenshots/VitalsHUD.png"),false,false); ++Stage; }
+        if(Stage==2&&T>4) { ++Stage; FPlatformMisc::RequestExit(false); }
+        return;
+    }
+    if(FParse::Param(FCommandLine::Get(),TEXT("DungeonDialogueSmokeTest")))
+    {
+        static int Step=0,Errors=0;
+        const float Time=GetWorld()->GetTimeSeconds();
+        auto* Hero=Cast<ADungeonHero>(UGameplayStatics::GetPlayerPawn(this,0));
+        if(Step==0&&Time>2&&Hero) { StartGame(); Room=4; SpawnWave(); ++Step; }
+        if(Step==1&&Time>5)
+        {
+            if(!IsBossDialogueActive()||!IsGameplayBlocked()) ++Errors;
+            FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir()/TEXT("Screenshots/BossDialogue.png"),false,false); ++Step;
+        }
+        if(Step==2&&Time>6) { AdvanceBossDialogue(); ++Step; }
+        if(Step==3&&Time>7)
+        {
+            if(DialogueIndex!=1||!IsGameplayBlocked()) ++Errors;
+            FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir()/TEXT("Screenshots/BossReply.png"),false,false); ++Step;
+        }
+        if(Step==4&&Time>8) { AdvanceBossDialogue(true); ++Step; }
+        if(Step==5&&Time>9&&Hero)
+        {
+            if(IsGameplayBlocked()) ++Errors;
+            Hero->Attack(); if(!Hero->IsAttacking()) ++Errors;
+            Hero->AttackQuip=TEXT("Take this you C*NT!"); Hero->QuipTime=1.5f;
+            FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir()/TEXT("Screenshots/AttackQuip.png"),false,false); ++Step;
+        }
+        if(Step==6&&Time>11)
+        {
+            FFileHelper::SaveStringToFile(FString::Printf(TEXT("DIALOGUE_SMOKE errors=%d; introduction; boss reply; skip; combat resume; quip render\n"),Errors),*(FPaths::ProjectSavedDir()/TEXT("DialogueSmokeTest.txt")));
+            ++Step; FPlatformMisc::RequestExitWithStatus(false,Errors?1:0);
+        }
+        return;
+    }
     if(!FParse::Param(FCommandLine::Get(),TEXT("DungeonSmokeTest"))) return;
     static int Stage=0; const float T=GetWorld()->GetTimeSeconds();
     auto* H=Cast<ADungeonHero>(UGameplayStatics::GetPlayerPawn(this,0));

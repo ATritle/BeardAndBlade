@@ -20,6 +20,8 @@ The Tea & Finance update adds the bald, full-bearded, round-glasses adventurer, 
 
 ## Implemented loop
 
+Latest source update: compact bottom-center health/stamina HUD, stamina-limited sprint and dodge, health-potion drops, stronger enemies, small click-through boss speech bubbles, and three mystery chests that each roll from the full weapon/armor/amulet pool. Choose one reward; the others disappear. Includes Windows icon and splash branding. See [COMPACT_UPDATE.md](COMPACT_UPDATE.md) for details. Existing downloadable releases may predate these source changes.
+
 Four dungeon themes with 24 regular species and four bosses. Bosses appear every fourth room. Clear a room, choose one of three chests, equip loot through the 6x6 inventory, then walk through a glowing gate. The four-theme cycle repeats after room 16 with increasing enemy health.
 
 ## Art handoff

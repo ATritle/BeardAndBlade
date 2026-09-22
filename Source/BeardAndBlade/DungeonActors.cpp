@@ -69,12 +69,14 @@ void ADungeonHero::BeginPlay()
 }
 void ADungeonHero::Restart()
 {
+    CancelCombatActions();
     Equipment.SetNum(3);
     Equipment[0]=ADungeonGameMode::MakeItem(0,0); Equipment[0].Attack=0; Equipment[0].Name=TEXT("Old Iron Sword");
     Equipment[1]=ADungeonGameMode::MakeItem(3,0); Equipment[1].Defense=0; Equipment[1].Vitality=0; Equipment[1].Name=TEXT("Traveler's Leathers");
     Equipment[2]=FDungeonItem(); Equipment[2].Slot=2; Equipment[2].Icon=6;
     Inventory.Empty(); SelectedItem=INDEX_NONE; bInventoryOpen=false; InventoryMessage.Empty();
     Health=MaxHealth=150; AttackPower=24; Armor=8; HurtTime=Invulnerable=AttackTime=0;
+    Stamina=MaxStamina=100; StaminaDelay=0; bExhausted=false;
     InputX=InputY=WalkDistance=0; bSprinting=bWalking=false; Aim=FVector2D(0,1); Facing=4;
     RollTime=RollCooldown=PowerCooldown=PowerCastTime=0; bTeaReleased=false;
     SetActorLocation(DungeonView::Unproject(FVector2D(640,520)));
@@ -98,6 +100,7 @@ void ADungeonHero::Tick(float Dt)
     if(Health<=0) { bWalking=false; AttackTime=PowerCastTime=0; return; }
     if(RollTime>0)
     {
+        UpdateStamina(Dt,false);
         const float Step=FMath::Min(Dt,RollTime); RollTime=FMath::Max(0.f,RollTime-Dt);
         SetActorLocation(DungeonView::Unproject(DungeonView::Clamp(DungeonView::Project(GetActorLocation())+RollAim*510.f*Step)));
         bWalking=false; return;
@@ -105,7 +108,12 @@ void ADungeonHero::Tick(float Dt)
     FVector2D P=DungeonView::Project(GetActorLocation());
     FVector2D Move(InputX,InputY);
     Move=Move.GetClampedToMaxSize(1);
-    const FVector2D Next=DungeonView::Clamp(P+Move*(bSprinting?380.f:190.f)*Dt*(IsAttacking()?.5f:1.f));
+    const bool Sprinting=bSprinting&&!bExhausted&&Stamina>0&&!Move.IsNearlyZero()&&
+        !DungeonView::Clamp(P+Move).Equals(P,.001f);
+    // Split the final sprint frame so speed never exceeds the stamina available.
+    const float SprintSeconds=Sprinting?FMath::Min(Dt,Stamina/25.f):0;
+    const FVector2D Next=DungeonView::Clamp(P+Move*(190.f*Dt+190.f*SprintSeconds)*(IsAttacking()?.5f:1.f));
+    UpdateStamina(Dt,Sprinting);
     bWalking=FVector2D::Distance(Next,P)>.01f;
     WalkDistance+=FVector2D::Distance(Next,P);
     FootstepDistance+=FVector2D::Distance(Next,P);
@@ -167,7 +175,8 @@ void ADungeonHero::Attack()
     if(auto* G=Mode(this))
     {
         if(G->IsMenu()) { if(auto* PC=Cast<APlayerController>(GetController())) if(auto* HUD=Cast<ADungeonHUD>(PC->GetHUD())) HUD->InventoryClick(); return; }
-        if(G->IsTransitioning()) return;
+        if(G->IsBossDialogueActive()) { if(auto* PC=Cast<APlayerController>(GetController())) if(auto* HUD=Cast<ADungeonHUD>(PC->GetHUD())) HUD->DialogueClick(); return; }
+        if(G->IsGameplayBlocked()) return;
     }
     if(bInventoryOpen)
     {
@@ -177,6 +186,10 @@ void ADungeonHero::Attack()
     }
     if(Health<=0||IsAttacking()||IsRolling()||IsCasting()) return;
     AttackTime=.48f; bAttackHit=false; AttackAim=Aim; AttackDirection=Facing;
+    if(QuipCooldown<=0&&FMath::FRand()<.35f)
+    {
+        AttackQuip=TEXT("Take this you C*NT!"); QuipTime=1.5f; QuipCooldown=4.f;
+    }
     if(auto* G=Mode(this)) G->PlaySound(TEXT("Sword"),.8f,FMath::FRandRange(.92f,1.08f));
 }
 void ADungeonHero::Interact() { if(!bInventoryOpen) if(auto* G=Mode(this)) G->PlayerInteract(this); }
@@ -227,6 +240,7 @@ bool ADungeonHero::Unequip(int32 Slot)
 }
 void ADungeonHero::ReceiveHit(float Damage)
 {
+    if(auto* G=Mode(this)) if(G->IsGameplayBlocked()) return;
     if(Invulnerable>0||Health<=0) return;
     const float Actual=FMath::Max(2.f,Damage-Armor*.3f);
     Health=FMath::Max(0.f,Health-Actual);
@@ -237,7 +251,8 @@ void ADungeonHero::ReceiveHit(float Damage)
 void ADungeonHero::Dodge()
 {
     auto* G=Mode(this);
-    if(!G||G->IsGameplayBlocked()||bInventoryOpen||Health<=0||RollCooldown>0||IsCasting()) return;
+    if(!G||G->IsGameplayBlocked()||bInventoryOpen||Health<=0||RollCooldown>0||IsCasting()||bExhausted||Stamina<30) return;
+    SpendStamina(30);
     RollAim=FVector2D(InputX,InputY).GetSafeNormal(); if(RollAim.IsNearlyZero()) RollAim=Aim;
     RollDirection=(FMath::RoundToInt(FMath::Atan2(RollAim.Y,RollAim.X)/(PI/2))+4)%4;
     RollTime=.48f; RollCooldown=1.15f; Invulnerable=.34f; AttackTime=0; bAttackHit=true;
@@ -267,6 +282,7 @@ ADungeonEnemy::ADungeonEnemy()
 }
 void ADungeonEnemy::TakeDungeonDamage(float Damage)
 {
+    if(auto* G=Mode(this)) if(G->IsGameplayBlocked()) return;
     if(Health<=0||SpawnTime>0) return;
     Health=FMath::Max(0.f,Health-Damage); HurtTime=.2f;
     auto* G=Mode(this);
@@ -364,6 +380,13 @@ void ADungeonGameMode::Tick(float Dt)
     }
 #endif
     if(bMenu) return;
+    if(IsBossDialogueActive()) { DialogueWait=FMath::Max(0.f,DialogueWait-Dt); return; }
+    if(BossGrace>0) { BossGrace=FMath::Max(0.f,BossGrace-Dt); return; }
+    if(auto* H=Player(this))
+    {
+        H->QuipTime=FMath::Max(0.f,H->QuipTime-Dt);
+        H->QuipCooldown=FMath::Max(0.f,H->QuipCooldown-Dt);
+    }
     if(TransitionTime>0)
     {
         TransitionTime=FMath::Max(0.f,TransitionTime-Dt);
@@ -376,6 +399,7 @@ void ADungeonGameMode::Tick(float Dt)
     for(auto& Impact:Impacts) Impact.Life-=Dt;
     Impacts.RemoveAll([](const FDungeonImpact& I){return I.Life<=0;});
     if(IsDead()) return;
+    UpdatePotions(Dt);
     UpdateProjectiles(Dt);
     if(PendingSpawns>0)
     {
@@ -399,13 +423,15 @@ void ADungeonGameMode::SpawnOneEnemy()
     {
         E->bBoss=IsBossRoom(); E->Species=E->bBoss?24+GetBiome():GetBiome()*6+FMath::RandRange(0,5);
         const auto& S=DungeonRoster::Get(E->Species);
-        E->MaxHealth=E->Health=S.HP*(1.f+(Room-1)*.035f);
+        E->MaxHealth=E->Health=S.HP*1.15f*(1.f+(Room-1)*.035f);
         Enemies.Add(E);
+        if(E->bBoss) { E->SpawnTime=0; BeginBossDialogue(); }
         PlaySound(TEXT("Spawn"),.4f,E->bBoss?.65f:1.f);
     }
 }
 void ADungeonGameMode::PlayerAttack(ADungeonHero* H)
 {
+    if(!H||IsGameplayBlocked()) return;
     const FVector2D P=DungeonView::Project(H->GetActorLocation());
     TArray<TObjectPtr<ADungeonEnemy>> Hits;
     for(auto& E:Enemies) if(IsValid(E)&&E->SpawnTime<=0)
@@ -417,6 +443,8 @@ void ADungeonGameMode::PlayerAttack(ADungeonHero* H)
 }
 void ADungeonGameMode::EnemyDefeated(ADungeonEnemy* E)
 {
+    if(!IsValid(E)||!Enemies.Contains(E)) return;
+    if(E->bBoss||FMath::FRand()<.35f) { FDungeonPotion P; P.Position=DungeonView::Clamp(DungeonView::Project(E->GetActorLocation())); Potions.Add(P); }
     Enemies.Remove(E); E->Destroy();
     if(Enemies.IsEmpty()&&PendingSpawns==0)
     {
@@ -440,6 +468,12 @@ FDungeonItem ADungeonGameMode::MakeItem(int32 Icon,int32 Rarity)
     if(I.Slot==2) I.Vitality=(20+(I.Icon-6)*8)*Mult;
     return I;
 }
+FDungeonItem ADungeonGameMode::RollChestLoot(bool Boss)
+{
+    const int32 Roll=FMath::RandRange(1,100);
+    const int32 Rarity=Roll<=35?0:Roll<=65?1:Roll<=85?2:Roll<=97?3:4;
+    return MakeItem(FMath::RandRange(0,8),Boss?4:Rarity);
+}
 void ADungeonGameMode::PlayerInteract(ADungeonHero* H)
 {
     if(!H) return;
@@ -452,9 +486,7 @@ void ADungeonGameMode::PlayerInteract(ADungeonHero* H)
         if(Choice==INDEX_NONE) return;
         if(!ChestRolled[Choice])
         {
-            const int32 Roll=FMath::RandRange(1,100);
-            int32 Rarity=Roll<=35?0:Roll<=65?1:Roll<=85?2:Roll<=97?3:4;
-            ChestLoot[Choice]=MakeItem(Choice*3+FMath::RandRange(0,2),IsBossRoom()?4:Rarity); ChestRolled[Choice]=true;
+            ChestLoot[Choice]=RollChestLoot(IsBossRoom()); ChestRolled[Choice]=true;
         }
         Loot=ChestLoot[Choice]; bLootRolled=true;
         if(!H->AddToInventory(Loot)) { LootTimer=8; return; }
@@ -470,6 +502,8 @@ void ADungeonGameMode::PlayerInteract(ADungeonHero* H)
 }
 void ADungeonGameMode::NextRoom()
 {
+    Potions.Empty();
+    DialogueLines.Empty(); DialogueIndex=0; DialogueWait=BossGrace=0;
     bChest=bLootClaimed=bLootRolled=false; LootTimer=0; ++Room; Wave=1;
     for(bool& Rolled:ChestRolled) Rolled=false;
     Shots.Empty(); Splashes.Empty();
@@ -478,6 +512,8 @@ void ADungeonGameMode::NextRoom()
 }
 void ADungeonGameMode::RestartRun()
 {
+    Potions.Empty();
+    DialogueLines.Empty(); DialogueIndex=0; DialogueWait=BossGrace=0;
     for(auto& E:Enemies) if(IsValid(E)) E->Destroy();
     Enemies.Empty(); Impacts.Empty(); Room=Wave=1; bChest=bLootClaimed=bLootRolled=false; LootTimer=0;
     TransitionTime=0; Shots.Empty(); Splashes.Empty(); for(bool& Rolled:ChestRolled) Rolled=false;
@@ -487,7 +523,7 @@ void ADungeonGameMode::RestartRun()
 FString ADungeonGameMode::GetObjective() const
 {
     if(IsDead()) return TEXT("YOU FELL  -  Press E to begin a new run");
-    if(bChest) return bLootRolled?TEXT("Bag full - I to make space / choose one chest with E"):TEXT("CHOOSE ONE: weapon, armor or charm chest. The other two will vanish.");
+    if(bChest) return bLootRolled?TEXT("Bag full - I to make space / E to retry"):TEXT("Choose one mystery chest / E to open");
     if(bLootClaimed) return TEXT("Reward collected - I to equip gear / E at a glowing arch to continue");
     if(IsBossRoom()) return PendingSpawns?TEXT("A GUARDIAN AWAKENS"):TEXT("Watch the telegraph / SPACE to dodge / strike during recovery");
     return FString::Printf(TEXT("ROOM %d   /   WAVE %d OF 2   /   %d REMAINING"),Room,Wave,Enemies.Num()+PendingSpawns);
@@ -851,9 +887,7 @@ void ADungeonHUD::DrawHUD()
             float Pulse=.65f+.25f*FMath::Sin(GetWorld()->GetTimeSeconds()*3);
             Sprite(TEXT("Portal"),P.X-65,60,130,160,FLinearColor(.4f,1,.65f,Pulse));
             Ring(P,34,FLinearColor(.2f,1,.55f,Pulse),4);
-            Label(TEXT("E  ENTER"),P.X-30,220,FLinearColor(.45f,1,.65f),.9f);
         }
-        else Label(TEXT("SEALED"),P.X-26,162,FLinearColor(.6f,.42f,.3f),.8f);
     }
     for(auto& E:G->GetEnemies()) if(IsValid(E)&&E->Windup>0)
     {
@@ -873,7 +907,6 @@ void ADungeonHUD::DrawHUD()
         {
             const auto P=G->ChestPosition(I);
             Ring(P,45,Gold,3); Sprite(TEXT("Chest"),P.X-60,P.Y-109,120,120);
-            Label(I==0?TEXT("E  WEAPON"):I==1?TEXT("E  ARMOR"):TEXT("E  CHARM"),P.X-42,P.Y+16,Gold);
         }
     }
     for(const auto& FX:G->GetSplashes())
@@ -881,6 +914,7 @@ void ADungeonHUD::DrawHUD()
         const float Age=.65f-FX.Life,Size=FX.Radius*2*(.7f+.3f*FMath::Clamp(Age/.13f,0.f,1.f));
         KeySprite(FString::Printf(TEXT("TeaFX_%d"),FX.Art),FX.Position.X-Size*.5f,FX.Position.Y-Size*.325f,Size,Size*.65f,FLinearColor(1,1,1,FMath::Min(1.f,FX.Life/.25f)));
     }
+    DrawPotions(G);
     // Draw actor sprites once, sorted by foot depth.
     TArray<AActor*> Actors; Actors.Add(H);
     for(auto& E:G->GetEnemies()) if(IsValid(E)) Actors.Add(E);
@@ -911,11 +945,9 @@ void ADungeonHUD::DrawHUD()
         if(I.Damage>0) Label(FString::Printf(TEXT("%.0f"),I.Damage),I.Position.X-8,I.Position.Y-75-Age*42,C,1.4f);
         else Ring(I.Position,30+Age*150,C,5);
     }
-    Box(24,22,266,100,Ink); Box(24,22,3,100,Gold);
+    Box(24,22,266,60,Ink); Box(24,22,3,60,Gold);
     Label(TEXT("BEARD & BLADE"),40,33,Gold,1.15f);
-    Box(40,63,230,12,FLinearColor(.15f,.035f,.025f));
-    Box(40,63,230*H->Health/H->MaxHealth,12,FLinearColor(.72f,.12f,.08f));
-    Label(FString::Printf(TEXT("%.0f / %.0f HP     ATK %.0f   ARM %.0f"),H->Health,H->MaxHealth,H->AttackPower,H->Armor),40,87,Pale,.85f);
+    Label(FString::Printf(TEXT("ATTACK %.0f   /   ARMOR %.0f"),H->AttackPower,H->Armor),40,60,Pale,.85f);
     Label(FString::Printf(TEXT("%s / ROOM %02d"),DungeonRoster::Biome(G->GetBiome()),G->GetRoom()),900,28,Gold,.85f);
     for(int I=0;I<3&&I<H->Equipment.Num();++I)
     {
@@ -929,11 +961,8 @@ void ADungeonHUD::DrawHUD()
         Box(390,27,500,68,Ink); Label(DungeonRoster::Get(E->Species).Name,500,34,Gold);
         Box(410,64,460,11,FLinearColor(.13f,.025f,.025f)); Box(410,64,460*E->Health/E->MaxHealth,11,FLinearColor(.95f,.23f,.06f));
     }
-    Box(210,744,860,36,Ink); Label(G->GetObjective(),230,754,Gold,.95f);
-    Label(TEXT("WASD MOVE  SHIFT SPRINT  SPACE DODGE  LMB STRIKE  RMB TEA  E INTERACT  I BAG  P MENU"),290,786,Pale,.72f);
-    Box(40,132,110,5,FLinearColor(.08f,.1f,.13f)); Box(40,132,110*(1.f-H->GetRollCooldown()/1.15f),5,FLinearColor(.35f,.8f,1));
-    Box(166,128,124,25,Ink); Box(170,147,116*(1.f-H->GetPowerCooldown()/10.f),3,Gold);
-    Label(H->GetPowerCooldown()>0?FString::Printf(TEXT("RMB TEA  %.1fs"),H->GetPowerCooldown()):TEXT("RMB TEA  READY"),170,130,Gold,.72f);
+    DrawVitals(H);
+    Label(G->GetObjective(),40,100,Gold,.77f);
     if(G->IsLootRevealed())
     {
         auto& L=G->GetLoot(); FLinearColor C=RarityColor(L.Rarity);
@@ -945,6 +974,7 @@ void ADungeonHUD::DrawHUD()
         Label(L.Stats(),930,423,Pale,.85f);
         Label(G->HasChest()?TEXT("Make space in your bag, then retry the chest"):TEXT("Press I to open your bag and equip this item"),930,451,Pale,.7f);
     }
+    DrawDialogue(G,H);
     if(H->IsInventoryOpen()) DrawInventory(H);
     if(G->IsDead())
     {
