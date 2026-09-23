@@ -1,29 +1,35 @@
-# Beard & Blade
+# The Beard and Blade
 
-Playable Unreal Engine 5.8 sprite dungeon game. See PLAYTEST.md for controls, content, validation and current limitations.
+A Windows pixel-art dungeon crawler built with Unreal Engine 5.8.
 
 ## Play
 
-**Players:** download the Windows ZIP from [Releases](https://github.com/ATritle/BeardAndBlade/releases), extract the entire folder, and launch `BeardAndBlade.exe`. Unreal Editor is not required for the packaged build. The automatic GitHub source ZIP is not a playable game. See [DISTRIBUTION.md](DISTRIBUTION.md) for packaging, prerequisites and browser-play options.
+Download `TheBeardAndBlade-Windows-v0.2.0.zip` from [Releases](https://github.com/ATritle/TheBeardAndBlade/releases). Extract the **entire ZIP**, then launch `Windows/TheBeardAndBlade.exe`. Unreal Editor is not required. The automatic GitHub source ZIP is not playable.
 
-**Developers:**
+Windows x64 with a compatible DirectX graphics driver is required. Keep the supporting folders beside the EXE. If prerequisites are missing, run the bundled installer under `Windows/Engine/Extras/Redist/en-us`. This is an unsigned playtest, not a browser, macOS or Linux build.
 
-1. Open `BeardAndBlade.uproject` in Unreal Engine 5.8.
-2. If prompted, allow Unreal to compile the C++ project files.
-3. Choose **Play > Selected Viewport**, then **Begin Descent** on the title menu.
+## Controls
 
-Controls: **WASD** move, **Shift** sprint, **Space** dodge, mouse aim, **left mouse** attack, **right mouse** tea splash (10-second cooldown), **E** interact, **I** inventory, **P** menu.
+WASD move; Shift sprint; Space dodge; mouse aim; LMB attack; RMB tea splash; MMB FREEDOM after 15 enemy kills; E interact; I inventory; P menu; M music; N effects.
 
-**M** toggles music; **N** toggles sound effects. Includes original synthesized menu, dungeon and boss music plus 16 gameplay effects. Details and regeneration instructions: [AUDIO.md](AUDIO.md).
+Hover over inventory items for stats. Drag to rearrange the bag or drop on the matching equipment slot. Double-click to equip. Items cannot overlap. Unequip returns gear to an available bag space.
 
-The Tea & Finance update adds the bald, full-bearded, round-glasses adventurer, Finance Guy as the room-four boss, stock/bond volleys, and illustrated ranged projectiles and impact splashes. Artwork sources and built-in image-generation prompts are in `ArtSource/TEA_PROMPTS.md`.
+## Features
 
-## Implemented loop
+- Four dungeon themes, 24 regular enemy species and four bosses, appearing every fourth room.
+- Multiple boss attacks, illustrated projectiles, blood effects and fading floor pools.
+- Three random reward chests per cleared room: choose one, equip your loot, then enter a glowing background arch.
+- 48 item designs with five rarity tiers, rolled stats and timed combat effects.
+- Six-by-six inventory: weapons 1×2, armor 2×2 and amulets 1×1.
+- Directional hero animations, hand-anchored equipment, individually sized weapons and three worn armor appearance families.
+- Compact health/stamina HUD, potions, music, sound effects and an illustrated title menu.
 
-Latest source update: compact bottom-center health/stamina HUD, stamina-limited sprint and dodge, health-potion drops, stronger enemies, small click-through boss speech bubbles, and three mystery chests that each roll from the full weapon/armor/amulet pool. Choose one reward; the others disappear. Includes Windows icon and splash branding. See [COMPACT_UPDATE.md](COMPACT_UPDATE.md) for details. Existing downloadable releases may predate these source changes.
+## Develop
 
-Four dungeon themes with 24 regular species and four bosses. Bosses appear every fourth room. Clear a room, choose one of three chests, equip loot through the 6x6 inventory, then walk through a glowing gate. The four-theme cycle repeats after room 16 with increasing enemy health.
+Open `TheBeardAndBlade.uproject` in Unreal Engine 5.8 with the C++ toolchain installed. Choose Play > Selected Viewport. Imported runtime assets are included; raw/private reference artwork, caches and packaged binaries are excluded from source control.
 
-## Art handoff
+See [PLAYTEST.md](PLAYTEST.md) for testing, [DISTRIBUTION.md](DISTRIBUTION.md) for packaging, [AUDIO.md](AUDIO.md) for sound and [RELEASE_NOTES.md](RELEASE_NOTES.md) for this version.
 
-Runtime sprites and dungeon/menu textures live in `Content/Art/V2`; audio lives in `Content/Audio`. Imported assets are included in Git. Raw art-generation sheets, private reference photographs and local render captures are retained only in the developer workspace, not uploaded. `Tools` contains the preparation/import scripts; art preparation requires those optional local source sheets, but opening/building the checked-in project does not. Rendering is a single Canvas layer with screen-space movement, frame-specific weapon anchors and worn armor variants. No external plugin is needed to play. Progress is not saved between sessions.
+## Playtest limitations
+
+No saved campaign progress or ending; themes repeat after room 16. Armor shares three animated appearance families rather than a unique full animation set per item. FREEDOM uses an eagle screech and graphical callout, not a recorded spoken voice. Balance and subjective animation/audio quality still need player feedback.

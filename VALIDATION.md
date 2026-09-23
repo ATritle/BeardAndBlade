@@ -1,33 +1,14 @@
-# Campaign build validation — September 21, 2026
+# v0.2.0 validation — September 22, 2026
 
-## Audio and standalone Windows playtest
+- UE 5.8 Development Editor and Windows Shipping targets compiled and linked successfully.
+- In-engine campaign suite: DUNGEON_CAMPAIGN_VERIFY_COMPLETE errors=0, exit 0.
+- Packaged Shipping loot suite: LOOT_SMOKE errors=0; 49 textures, hover inspection, timed ailment rendering/expiration. Includes bag movement, invalid overlap/out-of-bounds drops, wrong-slot rejection, equipment swap and double-click tests.
+- Packaged startup suite: PACKAGED_SMOKE errors=0; 19 base audio assets, menu-to-game transition, tea cooldown and playing music component.
+- GPU captures inspected for all 24 equipped weapons facing right and left. Compact weapons are smaller; large swords retain their relative size. Scaling preserves grip pivots and does not change attack range.
+- BuildCookRun cook/stage/archive completed successfully. The release was archived into a fresh v0.2.0 directory to exclude an old BeardAndBlade payload found in the former reusable Release folder.
+- ZIP integrity was checked with testzip. The ZIP includes the launcher, Shipping executable, cooked content, libraries, x64 redistributable and player instructions. SHA256SUMS.txt accompanies it.
+- Source excludes packaged binaries, caches, raw/private image references and local captures. Obsolete preview notes and unused prototype assets were retired into the ignored ArtSource/Retired-v020 directory for recovery.
 
-- Added/imported 19 SoundWave assets (three looping scores, sixteen effects); deterministic synthesis source and peak/RMS metadata included. WAV peaks are normalized below full scale. No subjective listening approval is claimed.
-- Development Editor and Win64 Shipping compiled successfully. BuildCookRun completed build, cook, stage and archive with exit 0; final cook had no errors.
-- Actual packaged Shipping EXE ran with `-DungeonSmokeTest` and exited 0. Result: `PACKAGED_SMOKE errors=0; audio assets=19; menu->game; tea cooldown; music component playing`. Standalone menu and gameplay screenshot captures were inspected. This tests the packaged binary, not editor Play mode.
-- Existing in-engine campaign suite also reported `DUNGEON_CAMPAIGN_VERIFY_COMPLETE errors=0` after audio integration.
-- Windows archive includes launcher, game executable, cooked content, libraries and prerequisites; excludes debug symbols and user save/config data. ZIP integrity and SHA-256 are checked by `Tools/zip_release.py`.
-- Public repository excludes raw reference/source artwork, caches, logs, binaries and local authentication. Android development file-server plugin is disabled; its local token was removed before publication.
+Automated checks and staged render inspection are not a full human playthrough or cross-machine compatibility test. No subjective audio/balance approval is claimed. The developer campaign run logged sandbox-denied Unreal stored-key writes, but its gameplay checks passed and the process exited successfully.
 
-## Tea & Finance update
-
-- Development Editor module rebuilt and linked successfully after the final code changes.
-- Final in-engine automation: `DUNGEON_CAMPAIGN_VERIFY_COMPLETE errors=0`, process exit 0. Includes the existing 16-room campaign suite plus tea cast/release, cooldown/repeated-input prevention, menu pause, nearby/distant AoE targets, one-hit-only splash, stock/bond volley alternation, and all 512 updated hero movement/attack/roll texture references.
-- Imported 537 textures: 384 hero outfit color frames, 128 roll frames, 8 Finance Guy poses, 16 projectile/effect icons and one title image. This count includes pose/outfit variants, not 537 distinct animations.
-- Reviewed actual GPU captures: MenuReview, BossReview0 (Finance Guy and stock volley), RollReview, FXReview, TeaReview, EquipmentReview and EquipmentLeftReview. FX slicing was corrected to follow empty gutters; a dedicated narrow-magenta-key material preserves purple spores. Equipment captures check all six left/right sword poses across four outfits.
-- TeaReview is a staged game-engine capture with two stationary test targets; gameplay damage/cooldown checks run separately. Effects use sprite movement, scale, rotation and fading, not multi-frame fluid simulation. No full manual balance playthrough was performed.
-- Art generated/edited with the built-in image tool. Selected sources and prompts are saved in `ArtSource/TEA_PROMPTS.md`; imported runtime assets are in `Content/Art/V2`.
-- Asset import reported both `TEA_ART_IMPORT_COMPLETE: 537` and `TEA_MATERIAL_COMPLETE`. The commandlet exit was 1 solely from the sandbox-blocked Zen security-config write described below; no Python import failure occurred. Final game tests and GPU capture processes exited successfully.
-
-## Previous campaign validation
-
-- Unreal Engine 5.8.2 Development Editor module compiled and linked successfully.
-- In-engine campaign automation completed with `DUNGEON_CAMPAIGN_VERIFY_COMPLETE errors=0`: 16-room progression, four boss identities, four biomes, exclusive chest choices, full-bag reward retention, inventory swaps, menu pause, dodge invulnerability/cooldown, all species attack dispatch and frame texture availability.
-- Imported 356 new textures (352 creature/dodge/outfit frames, three backgrounds, one final title illustration). Creature impact holds intentionally reuse a body pose; these are not 352 unique hand-authored animations.
-- Actual GPU screenshots reviewed: MenuReview, ChestReview, RosterReview, RollReview, BossReview1 and BossReview2 in ArtSource. The roster/dodge galleries are staged engine captures. Initial sheet slicing artifacts were corrected with gutter-aware bounds and a regenerated boss atlas.
-- Final Cinder Warden capture (BossReview3) exposed asynchronous texture placeholders. Added startup preloading and texture readiness checks, rebuilt successfully, then recaptured the boss and menu successfully without the checkerboard placeholder.
-- This was automated validation and visual inspection, not a complete manual balance playthrough. Four biomes repeat after room 16. No save system, campaign ending, drag/drop inventory or unique AI implementation per species is claimed.
-
-Sandbox-only test launches use a writable local shader/DDC directory. Unreal logged a Zen cache security-config write warning outside the workspace; gameplay tests and rendered captures still completed. These command-line cache overrides are not stored in the project's normal engine configuration.
-
-Title artwork uses the built-in image generation tool; the requested revision is a younger, slender adventurer with a natural unbraided red beard. Source: ArtSource/TitleFinal.png; runtime: Content/Art/V2/TitleFinal.uasset. Prompt records: ArtSource/CAMPAIGN_PROMPTS.md.
+Known limits: Windows x64 only; unsigned playtest; no saved campaign or ending; themes repeat after room 16; three shared armor appearance families; eagle screech plus graphical FREEDOM callout, not recorded speech.

@@ -1,14 +1,23 @@
-# v0.1.0 — Windows playtest
+# v0.2.0 — The Beard and Blade
 
-Download `BeardAndBlade-Windows-v0.1.0.zip`, extract the entire archive, then open `Windows/BeardAndBlade.exe`. UE5 is not required. Keep every supporting folder together. Windows x64; unsigned early playtest build.
+Download `TheBeardAndBlade-Windows-v0.2.0.zip`, extract the entire archive and run `Windows/TheBeardAndBlade.exe`. UE5 is not required. Windows x64 only; unsigned playtest. Keep all supporting files together.
 
-- Four dungeon themes, staggered waves, bosses every fourth room; Finance Guy is the first boss.
-- Three choose-one reward chests, equipment inventory and animated room transitions.
-- Sword combat, sprinting, dodge roll and a ten-second-cooldown tea splash power move.
-- Original synthesized menu, dungeon and boss music; 16 gameplay effect cues.
+## Changes
 
-Controls: WASD movement; Shift sprint; Space dodge; mouse aim; LMB sword; RMB tea; E interact; I inventory; P menu; M music on/off; N effects on/off. Audio preferences are saved locally.
+- Renamed project, executable, menu and branding to The Beard and Blade.
+- Reworked equipment: 48 item designs, five rarities, rolled stats, comparison tooltips and timed weapon effects.
+- Inventory drag-and-drop, collision-safe bag rearrangement and double-click equipping.
+- Individually adjusted equipped weapon scales: compact weapons and daggers are smaller; large swords remain larger. Grip positions and combat reach are unchanged.
+- Updated pixel-art menu buttons and compact HUD, tea/eagle ability graphics, speech bubbles, blood splashes and fading pools.
+- FREEDOM room-clearing eagle ability after 15 kills, activated with middle mouse.
+- Tougher, larger bosses with multiple attack patterns.
+- Choose one of three random chests, then enter the glowing arches already in each dungeon background.
+- Removed obsolete preview notes and unused prototype assets from the source tree.
 
-Verification: UE 5.8 Shipping build/cook/stage succeeded. Standalone packaged executable automated smoke test passed, including all 19 audio assets, menu-to-game transition, active music component and tea cooldown. Menu/gameplay screenshots were inspected. Existing automated campaign tests passed. No full human balance/audio-listening playthrough is claimed.
+## Controls
 
-Known limitations: no save system or campaign ending; themes repeat after room 16; effects share sound families; no browser build, installer or automatic updater. This release is for feedback, not a finished commercial release. If prerequisites are missing, use the bundled redistributable under Engine/Extras/Redist/en-us. Only run downloads from trusted sources.
+WASD move; Shift sprint; Space dodge; mouse aim; LMB attack; RMB tea; MMB FREEDOM; E interact; I inventory; P menu; M music; N effects.
+
+## Notes
+
+This is a feedback build. Progress is not saved; themes repeat after room 16; armor appearances share three animation families. FREEDOM has an eagle screech and visual callout, not recorded speech. No browser build, installer or auto-updater. The bundled prerequisites are under Engine/Extras/Redist/en-us if needed. See VALIDATION.md for the tested scope.
