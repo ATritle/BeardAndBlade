@@ -22,7 +22,7 @@ const FBaseLoot Catalog[]={
 }
 FString FDungeonItem::EffectText() const
 {
- const TCHAR* Texts[]={TEXT(""),TEXT("Bleed: 20% hit damage/sec for 4s"),TEXT("Poison: 14% hit damage/sec for 6s"),
+ const TCHAR* Texts[]={TEXT(""),TEXT("10% on hit: Bleed, 20% damage/sec for 4s"),TEXT("10% on hit: Poison, 14% damage/sec for 6s"),
  TEXT("Chill: slow movement 35% for 3s"),TEXT("Leech: heal 5% of direct damage"),TEXT("Harvest: heal 6 health per kill"),
  TEXT("Second wind: critical hits restore 12 stamina"),TEXT("Echo: every third strike splashes 35% damage"),
  TEXT("Execute: +35% damage below 30% enemy health"),TEXT("Berserk: +30% damage below 40% health"),

@@ -4,7 +4,7 @@ A Windows pixel-art dungeon crawler built with Unreal Engine 5.8.
 
 ## Play
 
-Download `TheBeardAndBlade-Windows-v0.2.0.zip` from [Releases](https://github.com/ATritle/TheBeardAndBlade/releases). Extract the **entire ZIP**, then launch `Windows/TheBeardAndBlade.exe`. Unreal Editor is not required. The automatic GitHub source ZIP is not playable.
+Download `TheBeardAndBlade-Windows-v0.2.1.zip` from [Releases](https://github.com/ATritle/TheBeardAndBlade/releases). Extract the **entire ZIP**, then launch `Windows/TheBeardAndBlade.exe`. Unreal Editor is not required. The automatic GitHub source ZIP is not playable.
 
 Windows x64 with a compatible DirectX graphics driver is required. Keep the supporting folders beside the EXE. If prerequisites are missing, run the bundled installer under `Windows/Engine/Extras/Redist/en-us`. This is an unsigned playtest, not a browser, macOS or Linux build.
 
@@ -21,7 +21,7 @@ Hover over inventory items for stats. Drag to rearrange the bag or drop on the m
 - Three random reward chests per cleared room: choose one, equip your loot, then enter a glowing background arch.
 - 48 item designs with five rarity tiers, rolled stats and timed combat effects.
 - Six-by-six inventory: weapons 1×2, armor 2×2 and amulets 1×1.
-- Directional hero animations, hand-anchored equipment, individually sized weapons and three worn armor appearance families.
+- Directional hero animations, hand-anchored equipment, individually sized weapons and a consistent starting outfit.
 - Compact health/stamina HUD, potions, music, sound effects and an illustrated title menu.
 
 ## Develop
@@ -32,4 +32,4 @@ See [PLAYTEST.md](PLAYTEST.md) for testing, [DISTRIBUTION.md](DISTRIBUTION.md) f
 
 ## Playtest limitations
 
-No saved campaign progress or ending; themes repeat after room 16. Armor shares three animated appearance families rather than a unique full animation set per item. FREEDOM uses an eagle screech and graphical callout, not a recorded spoken voice. Balance and subjective animation/audio quality still need player feedback.
+No saved campaign progress or ending; themes repeat after room 16. Armor changes stats without changing the hero's outfit colors. FREEDOM uses an eagle screech and graphical callout, not a recorded spoken voice. Balance and subjective animation/audio quality still need player feedback.

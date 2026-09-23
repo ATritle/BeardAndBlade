@@ -44,7 +44,7 @@ void ADungeonEnemy::Tick(float Dt)
         SetActorLocation(DungeonView::Unproject(Next)); bWalking=true;
         const FVector2D Segment=Next-P;
         const float T=Segment.IsNearlyZero()?0:FMath::Clamp(FVector2D::DotProduct(Target-P,Segment)/Segment.SizeSquared(),0.,1.);
-        if(FVector2D::Distance(P+Segment*T,Target)<(bBoss?48:30)) H->ReceiveHit(S.Damage*1.32f);
+        if(FVector2D::Distance(P+Segment*T,Target)<(bBoss?48:30)) H->ReceiveHit(S.Damage*(bBoss?1.32f:1.8f));
         return;
     }
     if(Windup>0)
@@ -143,7 +143,7 @@ void ADungeonGameMode::FireAttack(ADungeonEnemy* E)
     {
         const float Radius=S.AttackStyle==4?(E->bBoss?145.f:S.Range):S.Range;
         FVector2D Delta=DungeonView::Project(H->GetActorLocation())-E->AttackTarget; Delta.Y/=.65f;
-        if(Delta.Size()<Radius) H->ReceiveHit(S.Damage*1.32f);
+        if(Delta.Size()<Radius) H->ReceiveHit(S.Damage*1.8f);
         AddImpact(E->AttackTarget,0,true);
         if(E->Species!=27) return; // The forge boss also throws a radial ember burst.
     }
@@ -156,7 +156,7 @@ void ADungeonGameMode::FireAttack(ADungeonEnemy* E)
     for(int I=0;I<Count;++I)
     {
         float A=Ring?I*2*PI/Count:Base+(I-(Count-1)*.5f)*.18f;
-        FDungeonShot Shot; Shot.Position=P; Shot.Style=S.AttackStyle; Shot.Damage=S.Damage*1.32f;
+        FDungeonShot Shot; Shot.Position=P; Shot.Style=S.AttackStyle; Shot.Damage=S.Damage*1.8f;
         Shot.Radius=S.AttackStyle==5?12:8;
         Shot.Velocity=FVector2D(FMath::Cos(A),FMath::Sin(A))*(S.AttackStyle==5?125.f:190.f);
         Shot.Art=E->Species==1?3:E->Species==3||E->Species==16?14:
@@ -190,6 +190,16 @@ void ADungeonGameMode::VerifyCampaign()
     }
     H->Restart();
     {
+        const FVector2D Start=DungeonView::Project(H->GetActorLocation());
+        H->MoveRight(1); H->Tick(.1f);
+        Check(FMath::IsNearlyEqual(H->WalkCycle(),19.f/144.f*2.f*PI,.001f),TEXT("Walk cadence uses a 144-pixel cycle"));
+        Check(H->GetAnimationFrame()==0,TEXT("Walking no longer skips poses at 0.1 seconds"));
+        H->Restart(); H->MoveRight(1); H->SprintPressed(); H->Tick(.1f);
+        Check(FMath::IsNearlyEqual(float(DungeonView::Project(H->GetActorLocation()).X-Start.X),38.f,.01f),TEXT("Sprint retains 2x movement"));
+        Check(FMath::IsNearlyEqual(H->WalkCycle(),38.f/1.54f/144.f*2.f*PI,.001f),TEXT("Sprint cadence is slower than translation"));
+        H->Restart();
+    }
+    {
         FActorSpawnParameters P;P.SpawnCollisionHandlingOverride=ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
         auto* Target=GetWorld()->SpawnActor<ADungeonEnemy>(ADungeonEnemy::StaticClass(),FVector::ZeroVector,FRotator::ZeroRotator,P);
         Target->SpawnTime=0;Target->Health=Target->MaxHealth=1000;
@@ -197,6 +207,16 @@ void ADungeonGameMode::VerifyCampaign()
         Target->UpdateAilments(2);Check(Target->Health==970,TEXT("Bleed and poison deal elapsed damage"));
         Target->UpdateAilments(10);Check(Target->Health==930&&Target->BleedTime==0&&Target->PoisonTime==0&&Target->SlowTime==0,TEXT("Long frame caps damage at ailment duration"));
         Target->UpdateAilments(10);Check(Target->Health==930,TEXT("Expired ailments stop dealing damage"));
+        const auto SavedEnemies=Enemies; Enemies.Empty(); Enemies.Add(Target);
+        Target->SetActorLocation(H->GetActorLocation()); Target->Health=Target->MaxHealth=1000000;
+        H->Equipment[0].Effect=1; H->Equipment[1].Effect=2;
+        FMath::RandInit(210); int Bleeds=0,Poisons=0;
+        for(int I=0;I<400;++I) {
+            Target->BleedTime=Target->PoisonTime=0; PlayerAttack(H);
+            Bleeds+=Target->BleedTime>0; Poisons+=Target->PoisonTime>0;
+        }
+        Check(Bleeds>=10&&Bleeds<=80&&Poisons>=10&&Poisons<=80,TEXT("Bleed/poison are low-chance procs, not guaranteed"));
+        Enemies=SavedEnemies; H->Restart(); Impacts.Empty(); Blood.Empty();
         Target->Destroy();
     }
     bool SeenLoot[9]={false};

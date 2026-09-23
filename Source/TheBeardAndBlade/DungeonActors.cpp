@@ -78,7 +78,7 @@ void ADungeonHero::Restart()
     Health=MaxHealth=150; AttackPower=24; Armor=8; HurtTime=Invulnerable=AttackTime=0;
     CritChance=.05f;CritMultiplier=1.5f;AttackSpeed=StaminaRegen=1;StrikeCount=0;
     Stamina=MaxStamina=100; StaminaDelay=0; bExhausted=false;
-    InputX=InputY=WalkDistance=0; bSprinting=bWalking=false; Aim=FVector2D(0,1); Facing=4;
+    InputX=InputY=WalkDistance=FootstepDistance=0; bSprinting=bWalking=false; Aim=FVector2D(0,1); Facing=4;
     RollTime=RollCooldown=PowerCooldown=PowerCastTime=0; bTeaReleased=false;
     SetActorLocation(DungeonView::Unproject(FVector2D(640,520)));
 }
@@ -116,9 +116,11 @@ void ADungeonHero::Tick(float Dt)
     const FVector2D Next=DungeonView::Clamp(P+Move*(190.f*Dt+190.f*SprintSeconds)*(IsAttacking()?.5f:1.f));
     UpdateStamina(Dt,Sprinting);
     bWalking=FVector2D::Distance(Next,P)>.01f;
-    WalkDistance+=FVector2D::Distance(Next,P);
-    FootstepDistance+=FVector2D::Distance(Next,P);
-    if(bWalking&&FootstepDistance>58) { FootstepDistance=0; if(auto* G=Mode(this)) G->PlaySound(TEXT("Step"),.35f,FMath::FRandRange(.9f,1.1f)); }
+    // Cadence is independent of 2x sprint translation: walk ~8 fps, sprint ~10 fps.
+    const float GaitStep=FVector2D::Distance(Next,P)/(Sprinting?1.54f:1.f);
+    WalkDistance+=GaitStep;
+    FootstepDistance+=GaitStep;
+    if(bWalking&&FootstepDistance>=72) { FootstepDistance=FMath::Fmod(FootstepDistance,72.f); if(auto* G=Mode(this)) G->PlaySound(TEXT("Step"),.35f,FMath::FRandRange(.9f,1.1f)); }
     SetActorLocation(DungeonView::Unproject(Next));
     if(auto* PC=Cast<APlayerController>(GetController()))
     {
@@ -153,7 +155,7 @@ int32 ADungeonHero::GetAnimationFrame() const
 {
     if(IsCasting()) return FMath::Clamp((int32)(GetCastProgress()*6),0,5);
     if(IsAttacking()) return FMath::Clamp((int32)(GetAttackProgress()*6),0,5);
-    return bWalking?((int32)(WalkDistance/11.f)%6):0;
+    return bWalking?((int32)(WalkDistance/24.f)%6):0;
 }
 void ADungeonHero::SetupPlayerInputComponent(UInputComponent* I)
 {
@@ -454,8 +456,8 @@ void ADungeonGameMode::PlayerAttack(ADungeonHero* H)
         if(H->HasEffect(8)&&E->Health<E->MaxHealth*.3f) Damage*=1.35f;
         if(H->HasEffect(9)&&H->Health<H->MaxHealth*.4f) Damage*=1.3f;
         const float Dealt=FMath::Min(E->Health,Damage);
-        if(H->HasEffect(1)) { E->BleedTime=4;E->BleedDPS=Damage*.2f; }
-        if(H->HasEffect(2)) { E->PoisonTime=6;E->PoisonDPS=Damage*.14f; }
+        if(H->HasEffect(1)&&FMath::FRand()<.10f) { E->BleedTime=4;E->BleedDPS=Damage*.2f; }
+        if(H->HasEffect(2)&&FMath::FRand()<.10f) { E->PoisonTime=6;E->PoisonDPS=Damage*.14f; }
         if(H->HasEffect(3)) E->SlowTime=3;
         E->TakeDungeonDamage(Damage);
         if(H->HasEffect(4)) H->Health=FMath::Min(H->MaxHealth,H->Health+Dealt*.05f);
@@ -479,7 +481,7 @@ void ADungeonGameMode::EnemyDefeated(ADungeonEnemy* E)
         Blood.Add(B);
     }
     if(!IsFreedomActive()) FreedomKills=FMath::Min(15,FreedomKills+1);
-    if(E->bBoss||FMath::FRand()<.35f) { FDungeonPotion P; P.Position=DungeonView::Clamp(DungeonView::Project(E->GetActorLocation())); Potions.Add(P); }
+    if(E->bBoss||FMath::FRand()<.12f) { FDungeonPotion P; P.Position=DungeonView::Clamp(DungeonView::Project(E->GetActorLocation())); Potions.Add(P); }
     Enemies.Remove(E); E->Destroy();
     if(Enemies.IsEmpty()&&PendingSpawns==0)
     {
@@ -617,26 +619,16 @@ void ADungeonHUD::Hero(ADungeonHero* H,float HS)
     {
         Shadow(P,27);
         FString RollName=FString::Printf(TEXT("Roll_%d_%d"),H->GetRollDirection(),FMath::Clamp((int)(H->RollProgress()*8),0,7));
-        if(H->Equipment.Num()==3&&H->Equipment[1].Defense>0)
-        {
-            const TCHAR* Sets[]={TEXT("Sentinel"),TEXT("Verdant"),TEXT("Warden")};
-            RollName=FString(Sets[FMath::Clamp(H->Equipment[1].Icon-3,0,2)])+TEXT("_")+RollName;
-        }
         KeySprite(TEXT("Tea_")+RollName,P.X-64*HS,P.Y-116*HS,128*HS,128*HS,FLinearColor::White);
         return;
     }
     const int32 D=H->GetFacingDirection(),F=H->GetAnimationFrame();
-    const float Breath=FMath::Sin(GetWorld()->GetTimeSeconds()*(H->IsWalking()?6.f:2.8f))*.018f;
-    const float Bob=H->IsWalking()?FMath::Sin(H->WalkCycle()*2.f)*1.2f:0.f;
+    const float Breath=FMath::Sin(GetWorld()->GetTimeSeconds()*(H->IsWalking()?3.5f:2.8f))*.008f;
+    const float Bob=H->IsWalking()?FMath::Sin(H->WalkCycle()*2.f)*.6f:0.f;
     P.Y+=Bob;
     FString Name=FString::Printf(TEXT("%s%s_%d_%d"),H->IsAttacking()||H->IsCasting()?TEXT("Attack"):TEXT("Walk"),D%2?TEXT("Diagonal"):TEXT("Cardinal"),D/2,F);
     Shadow(P+FVector2D(0,-2-Bob),28);
     FString ArmorName=TEXT("Tea_Base_")+Name;
-    if(H->Equipment.Num()==3&&H->Equipment[1].Defense>0)
-    {
-        const TCHAR* Sets[]={TEXT("Sentinel"),TEXT("Verdant"),TEXT("Warden")};
-        ArmorName=TEXT("Tea_")+FString(Sets[FMath::Clamp(H->Equipment[1].Icon-3,0,2)])+TEXT("_")+Name;
-    }
     UMaterialInstanceDynamic* Worn=nullptr;
     if(!ArmorName.IsEmpty())
     {
@@ -715,7 +707,7 @@ void ADungeonHUD::Enemy(ADungeonEnemy* E)
     if(E->SpawnTime>0) Ring(P,32+E->SpawnTime*25,FLinearColor(.5f,.25f,1,.8f),3);
     const float Lift=S.Flying?18+FMath::Sin(GetWorld()->GetTimeSeconds()*4+E->Species)*5:0;
     const float Breath=1.f+FMath::Sin(GetWorld()->GetTimeSeconds()*(E->IsWalking()?5.5f:2.5f)+E->Species)*.012f;
-    const float StepBob=E->IsWalking()&&!S.Flying?FMath::Sin(E->WalkDistance/11.f*PI)*1.4f:0;
+    const float StepBob=E->IsWalking()&&!S.Flying?FMath::Sin(E->WalkDistance/24.f*PI)*1.4f:0;
     FLinearColor Tint=E->IsHurt()?FLinearColor(1,.45f,.35f):FLinearColor::White;
     const float Pulse=.5f+.5f*FMath::Sin(GetWorld()->GetTimeSeconds()*8);
     if(E->BleedTime>0||E->PoisonTime>0||E->SlowTime>0) {
@@ -1068,8 +1060,6 @@ void ADungeonHUD::DrawHUD()
     }
     DrawCombatFX(G,true);
     Offset=StableOffset; // Shake the dungeon, never the HUD or mouse-input mapping.
-    Sprite(TEXT("Item_0_0"),40,67,32,32); Label(FString::Printf(TEXT("%.0f"),H->AttackPower),76,80,Pale,.85f);
-    Sprite(TEXT("Item_1_0"),124,67,32,32); Label(FString::Printf(TEXT("%.0f"),H->Armor),160,80,Pale,.85f);
     Label(FString::Printf(TEXT("%s / ROOM %02d"),DungeonRoster::Biome(G->GetBiome()),G->GetRoom()),900,28,Gold,.85f);
     for(int I=0;I<3&&I<H->Equipment.Num();++I)
     {
@@ -1084,9 +1074,6 @@ void ADungeonHUD::DrawHUD()
         Box(410,64,460,11,FLinearColor(.13f,.025f,.025f)); Box(410,64,460*E->Health/E->MaxHealth,11,FLinearColor(.95f,.23f,.06f));
     }
     DrawVitals(H);
-    if(G->HasChest()) Sprite(TEXT("Chest"),34,109,44,44);
-    else if(G->AreDoorsOpen()) Sprite(TEXT("Portal"),34,109,44,54);
-    else { KeySprite(TEXT("Creature_0_0"),34,109,44,44,FLinearColor::White); Label(FString::FromInt(G->GetEnemies().Num()),82,127,Gold,.9f); }
     if(G->IsLootRevealed())
     {
         auto& L=G->GetLoot(); FLinearColor C=RarityColor(L.Rarity);

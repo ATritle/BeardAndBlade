@@ -1,4 +1,13 @@
-# v0.2.0 validation — September 22, 2026
+# v0.2.1 validation — September 23, 2026
+
+- Editor and Shipping builds passed; fresh v0.2.1 cook/stage/archive passed.
+- Campaign suite passed with added movement/cadence checks and 400-hit low-proc validation.
+- Both startup and loot/inventory smoke tests passed with errors=0 from a fresh extraction of the final ZIP.
+- Equipped-armor render gallery confirms all armor retains the starting outfit. Packaged gameplay capture checked for upper-left HUD removal.
+- Potion chance is 12% for ordinary enemies; bleed/poison 10% per landed hit; normal enemy damage multiplier increased from 1.32 to 1.8. Boss values and potion healing amount unchanged.
+- Animation cadence is retimed using the existing six walk poses, not a new animation atlas. Subjective movement/audio feel and difficulty still need player feedback.
+
+## Previous v0.2.0 validation
 
 - UE 5.8 Development Editor and Windows Shipping targets compiled and linked successfully.
 - In-engine campaign suite: DUNGEON_CAMPAIGN_VERIFY_COMPLETE errors=0, exit 0.

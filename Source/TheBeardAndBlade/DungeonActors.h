@@ -118,7 +118,7 @@ public:
     FString InventoryMessage;
     bool IsAttacking() const { return AttackTime>0; }
     bool IsWalking() const { return bWalking; }
-    float WalkCycle() const { return WalkDistance/66.f*2.f*PI; }
+    float WalkCycle() const { return WalkDistance/144.f*2.f*PI; }
     int32 GetFacingDirection() const { return IsCasting()?PowerDirection:IsAttacking()?AttackDirection:Facing; }
     int32 GetAnimationFrame() const;
     float GetAttackProgress() const { return 1.f-AttackTime/.48f; }

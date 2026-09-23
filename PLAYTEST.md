@@ -21,7 +21,7 @@ Check each weapon facing both left and right, including attack poses. The equipp
 
 Two staggered waves in ordinary rooms, bosses every fourth room. Forgotten Keep, Webroot Hollows, Glacial Reliquary and Cinder Foundry repeat after room 16. Choose one of three random rewards after clearing a room; the other chests disappear. All three gates lead to the next room.
 
-The catalog has 24 weapons, 12 armor pieces and 12 amulets. Rolled stats apply only while equipped. Bleed/poison/chill and other combat bonuses expire or trigger according to their tooltip. Armor shares three animated outfit families. No save system or campaign ending is implemented.
+The catalog has 24 weapons, 12 armor pieces and 12 amulets. Rolled stats apply only while equipped. Bleed/poison/chill and other combat bonuses expire or trigger according to their tooltip. Armor changes stats but keeps the starting outfit colors. No save system or campaign ending is implemented.
 
 ## Automated checks
 
