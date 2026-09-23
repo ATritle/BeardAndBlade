@@ -4,9 +4,9 @@ A Windows pixel-art dungeon crawler built with Unreal Engine 5.8.
 
 ## Play
 
-Download `TheBeardAndBlade-Windows-v0.2.1.zip` from [Releases](https://github.com/ATritle/TheBeardAndBlade/releases). Extract the **entire ZIP**, then launch `Windows/TheBeardAndBlade.exe`. Unreal Editor is not required. The automatic GitHub source ZIP is not playable.
+Download `TheBeardAndBlade-Windows-v0.2.1.zip` from [Releases](https://github.com/ATritle/TheBeardAndBlade/releases). Extract the **entire ZIP**. Newly packaged ZIPs launch from `TheBeardAndBlade/TheBeardAndBlade.exe`. The existing v0.2.1 download uses `Windows/TheBeardAndBlade.exe`; rename its outer `Windows` folder to `TheBeardAndBlade` to use the new path. Unreal Editor is not required. The automatic GitHub source ZIP is not playable.
 
-Windows x64 with a compatible DirectX graphics driver is required. Keep the supporting folders beside the EXE. If prerequisites are missing, run the bundled installer under `Windows/Engine/Extras/Redist/en-us`. This is an unsigned playtest, not a browser, macOS or Linux build.
+Windows x64 with a compatible DirectX graphics driver is required. Keep the supporting folders beside the EXE. If prerequisites are missing, run the bundled installer under `Engine/Extras/Redist/en-us` inside the extracted game folder. This is an unsigned playtest, not a browser, macOS or Linux build.
 
 ## Controls
 
