@@ -1,0 +1,9 @@
+{
+  "tool": "built-in image_gen",
+  "prompts": [
+    {
+      "file": "status-effects-8-frame-atlas.png",
+      "prompt": "Create a pixel-art status-effect animation sprite atlas for a dungeon action game. True transparent background, NO colored background, NO haze, NO checkerboard, NO text. Exactly 8 columns x 5 rows, 40 separated icons. Canvas 1536x960, equal 192x192 cells, all icons centered in cell with generous margins, no touching. Each ROW is a smooth 8-frame LOOP, left to right chronological, consistent scale and center. Last frame naturally loops to first; do not duplicate all frames. Crisp chunky pixel art with dark outlines and high contrast at small HUD sizes, consistent icon visual weight. Row 1 STUN: three golden five-point stars orbit a small elliptical path, orbit advances evenly through 8 frames. Row 2 SLOW: blue snail icon with visibly turning small clock hands on its shell and subtly bobbing head, same snail silhouette all frames. Row 3 POISON: bright green poison droplet with skull-shaped negative-space face; two small toxic bubbles rise and disappear over 8 frames. Row 4 BLEED: deep crimson blood drop with pale diagonal slash accent; a tiny secondary drop forms, falls and disappears over the loop. Row 5 TEMPORARY IMMUNITY: silver shield with bright cyan-white center and a four-point sparkle traveling clockwise around rim, gentle brightness pulse. Immunity is a shield, not a star or droplet. Avoid over-detailed textures; prioritize unmistakable readable silhouettes. All five effects must look distinct even in grayscale. No labels, no border frames, no ground circles, no background shadows, no weapons, no numbers. This is an animation source atlas, not a poster or UI screenshot."
+    }
+  ]
+}

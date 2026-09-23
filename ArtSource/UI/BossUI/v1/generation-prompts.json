@@ -1,0 +1,9 @@
+{
+  "tool": "built-in image_gen",
+  "prompts": [
+    {
+      "file": "current-bosses-ui.png",
+      "prompt": "Create a polished pixel-art dungeon game UI source asset sheet, transparent background, landscape 1536x1024. Four evenly spaced rows, each row contains three SEPARATE non-overlapping items with generous transparent gutters: left a square expressive boss dialogue portrait, middle a distinctive illustrated boss name graphic, right a long horizontal EMPTY health-bar border with a clear transparent rectangular interior for runtime fill. No health fill baked in. Cohesive chunky high-quality pixel art, dark outlines, readable silhouettes. Row 1: FINANCE GUY, sinister human corporate accountant in navy suit, red tie, slick hair, ledger and gold coin accents; brass ledger-themed border. Row 2: THE WEBROOT MATRIARCH, monstrous spider queen with multiple luminous eyes, root/chitin crown, violet and moss-green palette; twisted root and spiderweb border. Row 3: THE RIME EMPRESS, regal icy spectral queen with sharp frost crown, pale face, cyan white and deep blue; icicle silver border. Row 4: THE CINDER WARDEN, massive armored furnace guardian with burning eyes under iron helmet, charcoal and orange embers; riveted scorched iron border. Text must be exactly the four names above, readable and fully spelled, one name in each row, no other text or numbers. Portraits must be useful isolated dialogue cutouts; no scene backgrounds. Name lettering visually themed but legible. Maintain same health-bar interior dimensions in every row. No sample HUD, no mockup background, no checkerboard, no watermark. This is a new theme-based portrait design proposal for existing bosses, not a claim of exact existing sprite identity."
+    }
+  ]
+}
