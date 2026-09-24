@@ -38,13 +38,34 @@ inline const FDungeonSpecies Species[]={
  {TEXT("FINANCE GUY"),420,760,36,300,1.1f,1.6f,7,false},
  {TEXT("THE WEBROOT MATRIARCH"),445,940,34.5f,320,1.1f,1.6f,5,false},
  {TEXT("THE RIME EMPRESS"),460,1060,31.5f,340,1.3f,1.9f,6,true},
- {TEXT("THE CINDER WARDEN"),410,1320,54,145,1.3f,1.7f,4,false}
+ {TEXT("THE CINDER WARDEN"),410,1320,54,145,1.3f,1.7f,4,false},
+ {TEXT("BIG MACK"),420,900,32,440,.8f,1.2f,8,false},
+ {TEXT("TWISTER"),425,1600,16.8f,500,.65f,1.4f,9,true},
+ {TEXT("FLASH BANG GUY"),220,1450,20,360,.85f,2.6f,10,false},
+ {TEXT("Patty Brute"),48,100,18,100,1.15f,1.7f,4,false},
+ {TEXT("Fry Skitter"),102,34,9,160,.8f,1.3f,2,false},
+ {TEXT("Pickle Lobber"),51,46,12,300,1.f,2.1f,5,false},
+ {TEXT("Onion Bat"),80,32,10,230,.9f,1.8f,3,true},
+ {TEXT("Cleaver Cook"),68,64,17,76,.7f,1.2f,0,false},
+ {TEXT("Soda Imp"),66,40,11,265,.85f,1.6f,1,false},
+ {TEXT("Rifle Trooper"),62,60,11,370,.95f,1.65f,1,false},
+ {TEXT("Shield Breacher"),55,110,15,185,1.f,1.8f,2,false},
+ {TEXT("Flash Cadet"),62,46,10,320,1.25f,4.6f,5,false},
+ {TEXT("Scout Drone"),90,38,8,340,1.1f,2.f,3,true},
+ {TEXT("Shock Trooper"),73,72,15,110,.95f,1.6f,4,false},
+ {TEXT("Mortar Engineer"),42,70,22,390,1.4f,2.8f,5,false},
+ {TEXT("Tempest Wisp"),86,55,13,300,.85f,1.5f,1,true},
+ {TEXT("Thunder Roc"),108,72,17,205,1.05f,1.6f,2,true},
+ {TEXT("Storm Knight"),64,115,24,100,.95f,1.6f,0,false},
+ {TEXT("Static Spider"),75,80,14,280,1.1f,2.f,3,false},
+ {TEXT("Rubble Golem"),40,170,30,140,1.5f,2.2f,4,false},
+ {TEXT("Cyclone Imp"),74,63,12,260,1.3f,2.3f,6,true}
 };
-inline const FDungeonSpecies& Get(int32 I) { return Species[FMath::Clamp(I,0,27)]; }
+inline const FDungeonSpecies& Get(int32 I) { return Species[FMath::Clamp(I,0,48)]; }
 inline float RenderSize(int32 I)
 {
-    const float Sizes[]={178,168,112,132,110,190,210,195,220,160,240,178,205,145,210,220,185,210,190,235,215,180,235,260,225,350,330,380};
-    return Sizes[FMath::Clamp(I,0,27)];
+    const float Sizes[]={178,168,112,132,110,190,210,195,220,160,240,178,205,145,210,220,185,210,190,235,215,180,235,260,225,350,330,380,320,330,205,240,145,165,180,200,150,190,215,180,155,195,190,170,240,230,205,285,170};
+    return Sizes[FMath::Clamp(I,0,48)];
 }
-inline const TCHAR* Biome(int32 I) { const TCHAR* N[]={TEXT("THE FORGOTTEN KEEP"),TEXT("WEBROOT HOLLOWS"),TEXT("GLACIAL RELIQUARY"),TEXT("CINDER FOUNDRY")}; return N[I%4]; }
+inline const TCHAR* Biome(int32 I) { const TCHAR* N[]={TEXT("THE FORGOTTEN KEEP"),TEXT("WEBROOT HOLLOWS"),TEXT("GLACIAL RELIQUARY"),TEXT("CINDER FOUNDRY"),TEXT("STORMBREACH CITADEL"),TEXT("BLACKOUT BUNKER"),TEXT("THE GREASEWORKS")}; return N[FMath::Clamp(I,0,6)]; }
 }

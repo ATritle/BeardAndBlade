@@ -1,3 +1,21 @@
+# v0.3.0 — seven-chapter dungeon campaign
+
+Download `TheBeardAndBlade-Windows-v0.3.0.zip`, extract the entire archive, and run `TheBeardAndBlade/TheBeardAndBlade.exe`. Windows x64; UE5 is not required. Keep the included folders alongside the executable. Visual C++ prerequisites are included under `Engine/Extras/Redist/en-us`.
+
+- Twenty-one rooms: bosses every third room in order Finance Guy, Big Mack, Flash Bang Guy, Webroot, Rime, Cinder, Twister.
+- New Greaseworks kitchen arena; matching bunker and storm chapters; 18 new animated enemies with melee, charge, rifle, grenade and elemental attacks.
+- Sharper 256-pixel enemy frames, nearest-neighbor UI textures without mip streaming, frame preloading, and opaque spawning instead of washed-out sprite fades.
+- Flash Bang Guy follows a successful stun from his own grenade with a teleport, one knife strike for exactly 25% of the player's current health at impact, and a teleport back. Looking away avoids both flash and combo. Ordinary flash troops cannot trigger this boss attack.
+- Updated boss art, health-bar fit, weapon grip corrections, player idle breathing and Twister projectile/audio improvements from the local playtests.
+- Animated chest opening, actual-item ejection, rarity glow, floor pickup and full-inventory protection.
+- UE editor test shortcuts use the number row above QWERTY; test-room shortcuts are not enabled in the Shipping release.
+
+Controls: WASD move; Shift sprint; Space dodge; LMB attack; RMB tea; MMB FREEDOM; E interact/pick up; I inventory; P menu; M music; N effects.
+
+Unsigned Windows build. No saved campaign progress or ending; the seven-chapter rotation repeats after room 21. Flash grenades produce a bright fading flash and temporary blur. Balance and animation feel remain subject to player feedback.
+
+## Earlier releases and development history
+
 # v0.2.1 — combat balance and HUD cleanup
 
 Extract the complete `TheBeardAndBlade-Windows-v0.2.1.zip` and launch `Windows/TheBeardAndBlade.exe`. Windows x64; Unreal Editor is not required.
@@ -13,3 +31,11 @@ Extract the complete `TheBeardAndBlade-Windows-v0.2.1.zip` and launch `Windows/T
 Controls: WASD move; Shift sprint; Space dodge; LMB attack; RMB tea; MMB FREEDOM; E interact; I inventory; P menu; M music; N effects.
 
 Unsigned feedback build. No saved campaign progress or ending; themes repeat after room 16. Windows only, not a browser build. The Visual C++ prerequisite installer is in Engine/Extras/Redist/en-us/vc_redist.x64.exe if needed.
+# Local v0.3.0 playtest — September asset integration
+
+- Big Mack in room 8; Twister in room 24; six-boss rotation preserves all previous bosses.
+- Eight-direction boss animation, burger impacts/debris/landing dust, timed stun/slow, single-shot and full-auto attacks.
+- Illustrated boss portraits/nameplates, dynamic ornate health bars and animated status indicators.
+- Animated chest opening, actual-item ejection, rarity glow, floor pickup and full-bag protection.
+- Original source sheets retained with reproducible cleaned exports. See SEPTEMBER_INTEGRATION.md for balance and art caveats.
+- Local Windows package only; this task does not publish a new GitHub release.

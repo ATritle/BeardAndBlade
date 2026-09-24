@@ -10,7 +10,7 @@ namespace
     {
         FVector2D P=H?DungeonView::Project(H->GetActorLocation()):FVector2D(640,520);
         if(G->GetDialogueIndex()%2) for(auto& E:G->GetEnemies()) if(IsValid(E)&&E->bBoss) { P=DungeonView::Project(E->GetActorLocation()); break; }
-        return FVector2D(FMath::Clamp(P.X+55.,20.,940.),FMath::Clamp(P.Y-200.,120.,550.));
+        return FVector2D(FMath::Clamp(P.X+150.,20.,940.),FMath::Clamp(P.Y-200.,120.,550.));
     }
 }
 
@@ -24,7 +24,7 @@ void ADungeonHero::CancelCombatActions()
 
 void ADungeonGameMode::BeginBossDialogue()
 {
-    static const TCHAR* Conversations[4][6]={
+    static const TCHAR* Conversations[7][6]={
         {TEXT("Is this a dungeon or an open-plan office?"),
          TEXT("Finance Guy. Your survival isn't in this quarter's forecast."),
          TEXT("You've got twelve browser tabs open and not one exit plan."),
@@ -48,16 +48,19 @@ void ADungeonGameMode::BeginBossDialogue()
          TEXT("All that fire, and you still can't make a decent brew."),
          TEXT("Your insolence will feed my furnace."),
          TEXT("Careful. This cup's hotter than it looks."),
-         TEXT("Then let the final embers fall!")}
+         TEXT("Then let the final embers fall!")},
+        {TEXT("That's a rather large lunch."),TEXT("BIG MACK. Double the beef, double the trouble."),TEXT("Do you come with a side of chips?"),TEXT("You come with a side of bruises."),TEXT("I'll put the kettle on. This might take a while."),TEXT("Order up!")},
+        {TEXT("The forecast said a light breeze."),TEXT("TWISTER. Expect sustained fire."),TEXT("Two rifles? Bit much for a weather report."),TEXT("Single shots were only the warm-up."),TEXT("Right. Tea first. Storm chasing second."),TEXT("Welcome to the eye of the storm!")},
+        {TEXT("Lovely bunker. Terrible lighting."),TEXT("Flash Bang Guy. I can brighten your day."),TEXT("Is that a rifle or just part of the outfit?"),TEXT("Watch the grenade. Or don't. Your choice."),TEXT("Turn away when it pops. Got it."),TEXT("Let's see how quickly you learn!")}
     };
     DialogueLines.Empty(); DialogueIndex=0; DialogueWait=.8f; BossGrace=0;
-    for(const TCHAR* Line:Conversations[GetBiome()]) DialogueLines.Add(Line);
+    for(const TCHAR* Line:Conversations[GetBossSpecies()-24]) DialogueLines.Add(Line);
     Shots.Empty(); Splashes.Empty(); Impacts.Empty();
     if(auto* H=Cast<ADungeonHero>(UGameplayStatics::GetPlayerPawn(this,0))) H->CancelCombatActions();
 }
 FString ADungeonGameMode::GetDialogueSpeaker() const
 {
-    return DialogueIndex%2?FString(DungeonRoster::Get(24+GetBiome()).Name):TEXT("THE ADVENTURER");
+    return DialogueIndex%2?FString(DungeonRoster::Get(GetBossSpecies()).Name):TEXT("THE ADVENTURER");
 }
 void ADungeonGameMode::AdvanceBossDialogue(bool Skip)
 {
@@ -93,19 +96,22 @@ void ADungeonHUD::DrawDialogue(ADungeonGameMode* G,ADungeonHero* H)
     const float X=B.X,Y=B.Y;
     FVector2D Speaker=DungeonView::Project(H->GetActorLocation())-FVector2D(0,114);
     if(G->GetDialogueIndex()%2) for(auto& E:G->GetEnemies()) if(IsValid(E)&&E->bBoss)
-        { Speaker=DungeonView::Project(E->GetActorLocation())-FVector2D(0,DungeonRoster::RenderSize(E->Species)*.76f); break; }
+        { Speaker=DungeonView::Project(E->GetActorLocation())-FVector2D(0,DungeonRoster::RenderSize(E->Species)*.55f); break; }
     SpeechBubble(B,FVector2D(320,124),Speaker);
-    Label(G->GetDialogueSpeaker().ToUpper(),X+12,Y+12,Ink,.85f);
+    const bool BossSpeaking=(G->GetDialogueIndex()%2)!=0;
+    if(BossSpeaking) Sprite(FString::Printf(TEXT("BossPortrait_%d"),G->GetBossSpecies()-24),X+10,Y+13,60,64);
+    const float TextX=X+(BossSpeaking?78:12),MaxWidth=BossSpeaking?225.f:292.f;
+    Label(G->GetDialogueSpeaker().ToUpper(),TextX,Y+12,Ink,.65f);
     TArray<FString> Words; G->GetDialogueLine().ParseIntoArrayWS(Words);
     FString Line; float LineY=Y+34;
     for(const auto& Word:Words)
     {
         const FString Candidate=Line.IsEmpty()?Word:Line+TEXT(" ")+Word;
         float Width=0,Height=0; GetTextSize(Candidate,Width,Height,GEngine->GetMediumFont(),.95f);
-        if(Width>292&&!Line.IsEmpty()) { Label(Line,X+12,LineY,Ink,.95f); LineY+=17; Line=Word; }
+        if(Width>MaxWidth&&!Line.IsEmpty()) { Label(Line,TextX,LineY,Ink,.85f); LineY+=15; Line=Word; }
         else Line=Candidate;
     }
-    if(!Line.IsEmpty()) Label(Line,X+12,LineY,Ink,.95f);
+    if(!Line.IsEmpty()) Label(Line,TextX,LineY,Ink,.85f);
     Label(FString::Printf(TEXT("%d/%d  %s"),G->GetDialogueIndex()+1,G->GetDialogueCount(),
         G->CanAdvanceDialogue()?(G->GetDialogueIndex()+1==G->GetDialogueCount()?TEXT("CLICK TO FIGHT"):TEXT("CLICK TO CONTINUE")):TEXT("...")),X+12,Y+103,Ink,.65f);
     Box(X+222,Y+98,86,20,Ink); Label(TEXT("SKIP / FIGHT"),X+230,Y+103,Paper,.65f);

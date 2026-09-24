@@ -31,4 +31,14 @@ inline const float Angles[8][6]={
  {-135,40,-55,-85,-145,-135},{-35,30,-30,-80,-135,-35}
 };
 inline FVector2D Grip(int32 Icon) { return Icon==1?FVector2D(53,86):FVector2D(64,98); }
+// Measured handle centers in the exported Loot_0..23 128-pixel canvases.
+// Off-axis sickles, cleavers and sabres cannot use the sword's center pivot.
+inline FVector2D CatalogGrip(int32 Id)
+{
+    const FVector2D Grips[]={{64,91},{64,77},{64,93},{64,89},{64,88},{56,94},
+        {47,88},{64,78},{64,88},{64,89},{64,89},{64,79},
+        {61,79},{61,80},{64,89},{34,80},{64,88},{68,87},
+        {54,87},{64,79},{64,78},{64,87},{64,88},{64,93}};
+    return Grips[FMath::Clamp(Id,0,23)]/128.;
+}
 }

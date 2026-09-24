@@ -6,7 +6,7 @@
 void ADungeonHero::PowerMove()
 {
     auto* G=Cast<ADungeonGameMode>(UGameplayStatics::GetGameMode(this));
-    if(!G||G->IsGameplayBlocked()||IsInventoryOpen()||Health<=0||IsRolling()||IsAttacking()||IsCasting()||PowerCooldown>0) return;
+    if(!G||G->IsGameplayBlocked()||IsInventoryOpen()||Health<=0||StunTime>0||IsRolling()||IsAttacking()||IsCasting()||PowerCooldown>0) return;
     const FVector2D P=DungeonView::Project(GetActorLocation());
     PowerTarget=P+Aim*300;
     if(auto* PC=Cast<APlayerController>(GetController()))
@@ -37,6 +37,39 @@ void ADungeonGameMode::LaunchTea(ADungeonHero* H,FVector2D Target)
 
 void ADungeonGameMode::ResolveProjectile(const FDungeonShot& S,FVector2D At)
 {
+    if(S.Style==14||S.Style==15)
+    {
+        FDungeonSplash FX;FX.Position=At;FX.Art=S.Art==40?48:S.Art==42?50:S.Art==43||S.Art==46?51:49;
+        FX.Radius=FMath::Max(30.f,S.BlastRadius);Splashes.Add(FX);
+        PlaySound(S.Style==14?TEXT("Explosion"):TEXT("Magic"),.45f);
+        if(auto* H=Cast<ADungeonHero>(UGameplayStatics::GetPlayerPawn(this,0)))
+        {
+            auto D=DungeonView::Project(H->GetActorLocation())-FVector2D(0,S.HitHeight)-At;D.Y/=.65f;
+            if(D.Size()<=FMath::Max(S.Radius+20,S.BlastRadius)) H->ReceiveHit(S.Damage);
+        }
+        return;
+    }
+    if(S.Style==13)
+    {
+        FDungeonSplash FX;FX.Position=At;FX.Art=20;FX.Radius=175;Splashes.Add(FX);
+        PlaySound(TEXT("FlashBang"),.65f);
+        if(auto* H=Cast<ADungeonHero>(UGameplayStatics::GetPlayerPawn(this,0)))
+            if(H->ApplyFlashBang(At,S.BlastRadius)&&S.SourceEnemy.IsValid())S.SourceEnemy->BeginFlashAmbush(H,this);
+        return;
+    }
+    if(S.Style==10||S.Style==11)
+    {
+        AddBossFX(At,S.Style==10?16:18);
+        if(auto* H=Cast<ADungeonHero>(UGameplayStatics::GetPlayerPawn(this,0)))
+        {
+            if(FVector2D::Distance(DungeonView::Project(H->GetActorLocation())-FVector2D(0,S.HitHeight),At)<S.Radius+20)
+            {
+                const float Before=H->Health; H->ReceiveHit(S.Damage,S.Style==11);
+                if(S.Style==10&&H->Health<Before) H->ApplyBurgerStatus();
+            }
+        }
+        return;
+    }
     FDungeonSplash FX; FX.Position=At; FX.bFriendly=S.bFriendly; FX.Radius=FMath::Max(28.f,S.BlastRadius);
     FX.Art=S.bFriendly?8:S.Art==1||S.Art==2?9:S.Art==4?10:S.Art==5?11:S.Art==6?12:S.Art==7?13:15;
     Splashes.Add(FX);
@@ -53,7 +86,7 @@ void ADungeonGameMode::ResolveProjectile(const FDungeonShot& S,FVector2D At)
     }
     else if(auto* H=Cast<ADungeonHero>(UGameplayStatics::GetPlayerPawn(this,0)))
     {
-        auto D=DungeonView::Project(H->GetActorLocation())-At; D.Y/=.65;
+        auto D=DungeonView::Project(H->GetActorLocation())-(S.Style==12?FVector2D(0,65):FVector2D::ZeroVector)-At; D.Y/=.65;
         if(D.Size()<=FMath::Max(S.Radius+20,S.BlastRadius)) H->ReceiveHit(S.Damage);
     }
 }
@@ -68,19 +101,21 @@ void ADungeonGameMode::UpdateProjectiles(float Dt)
     {
         const float Step=FMath::Min(Dt,FMath::Max(0.f,S.Life));
         const auto Before=S.Position; S.Age+=Dt; S.Life-=Dt;
-        if(S.bFriendly) S.Position=FMath::Lerp(S.Origin,S.Target,FMath::Clamp(S.Age/S.FlightTime,0.f,1.f));
+        if(S.bFriendly||S.Style==13||S.Style==14) S.Position=FMath::Lerp(S.Origin,S.Target,FMath::Clamp(S.Age/S.FlightTime,0.f,1.f));
         else S.Position+=S.Velocity*Step;
         bool Hit=false;
-        if(!S.bFriendly)
+        if(!S.bFriendly&&S.Style!=13&&S.Style!=14)
         {
             const auto Segment=S.Position-Before;
-            const float T=Segment.IsNearlyZero()?0:FMath::Clamp(FVector2D::DotProduct(HeroP-Before,Segment)/Segment.SizeSquared(),0.,1.);
-            Hit=FVector2D::Distance(Before+Segment*T,HeroP)<S.Radius+17;
+            const auto HitCenter=HeroP-FVector2D(0,S.Style==12?65:S.HitHeight);
+            const float T=Segment.IsNearlyZero()?0:FMath::Clamp(FVector2D::DotProduct(HitCenter-Before,Segment)/Segment.SizeSquared(),0.,1.);
+            Hit=FVector2D::Distance(Before+Segment*T,HitCenter)<S.Radius+17;
             if(Hit) S.Position=Before+Segment*T;
         }
-        if(Hit||S.Life<=0)
+        const bool Wall=S.Position.X<65||S.Position.X>1215||S.Position.Y<145||S.Position.Y>755;
+        if(Hit||S.Life<=0||Wall)
         {
-            ResolveProjectile(S,S.bFriendly?S.Target:S.Position); S.Life=0;
+            ResolveProjectile(S,(S.bFriendly||S.Style==13||S.Style==14)?S.Target:S.Position); S.Life=0;
         }
     }
     Shots.RemoveAll([](const FDungeonShot& S){return S.Life<=0||S.Position.X<65||S.Position.X>1215||S.Position.Y<145||S.Position.Y>755;});

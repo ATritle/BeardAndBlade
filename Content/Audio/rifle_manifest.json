@@ -1,0 +1,23 @@
+{
+  "Rifle0": {
+    "seconds": 0.48,
+    "peak": 0.78,
+    "rms": 0.04469461193169166,
+    "loop": false,
+    "source": "Original procedural rifle sound design"
+  },
+  "Rifle1": {
+    "seconds": 0.48,
+    "peak": 0.78,
+    "rms": 0.04028039017501351,
+    "loop": false,
+    "source": "Original procedural rifle sound design"
+  },
+  "Rifle2": {
+    "seconds": 0.48,
+    "peak": 0.78,
+    "rms": 0.03966372805377708,
+    "loop": false,
+    "source": "Original procedural rifle sound design"
+  }
+}

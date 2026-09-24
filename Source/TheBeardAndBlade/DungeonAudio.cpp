@@ -88,7 +88,7 @@ void ADungeonGameMode::RunPackagedSmokeTest()
         static int Step=0,Errors=0;
         const float Time=GetWorld()->GetTimeSeconds();
         auto* Hero=Cast<ADungeonHero>(UGameplayStatics::GetPlayerPawn(this,0));
-        if(Step==0&&Time>2&&Hero) { StartGame(); Room=4; SpawnWave(); ++Step; }
+        if(Step==0&&Time>2&&Hero) { StartGame(); Room=3; SpawnWave(); ++Step; }
         if(Step==1&&Time>5)
         {
             if(!IsBossDialogueActive()||!IsGameplayBlocked()) ++Errors;

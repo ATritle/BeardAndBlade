@@ -8,7 +8,7 @@ void ADungeonHero::Freedom()
 
 bool ADungeonGameMode::ActivateFreedom(ADungeonHero* H)
 {
-    if(!H||H->Health<=0||H->IsInventoryOpen()||IsGameplayBlocked()||IsFreedomActive()||FreedomKills<15||bChest||bLootClaimed) return false;
+    if(!H||H->Health<=0||H->StunTime>0||H->IsInventoryOpen()||IsGameplayBlocked()||IsFreedomActive()||FreedomKills<15||bChest||bLootClaimed) return false;
     FreedomKills=0; FreedomTime=3.f; bFreedomResolved=false;
     H->CancelCombatActions();
     Shots.Empty();
@@ -32,7 +32,7 @@ void ADungeonGameMode::UpdateFreedom(float Dt)
             E->SpawnTime=0;
             E->TakeDungeonDamage(E->Health+1.f);
         }
-        if(Enemies.IsEmpty()) bChest=true;
+        CompleteRoom();
     }
     FreedomTime=Remaining;
 }

@@ -3,6 +3,7 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/HUD.h"
+#include "DungeonProgression.h"
 #include "DungeonActors.generated.h"
 
 class UCameraComponent;
@@ -10,6 +11,9 @@ class UTexture2D;
 class UMaterialInstanceDynamic;
 class UAudioComponent;
 class USoundBase;
+class ADungeonGameMode;
+class SBackgroundBlur;
+class SBorder;
 
 // Shared virtual canvas: input, combat and rendering use one mapping.
 namespace DungeonView
@@ -35,6 +39,15 @@ struct FDungeonItem
 };
 struct FDungeonBagEntry { FDungeonItem Item; FIntPoint Cell; };
 struct FDungeonPotion { FVector2D Position; float Age=0; };
+enum class ERewardPhase : uint8 { Closed, Opening, Ejecting, Available, Collected };
+struct FRewardPresentation
+{
+    ERewardPhase Phase=ERewardPhase::Closed;
+    int32 Choice=INDEX_NONE;
+    float Age=0,CollectedAge=0;
+    bool BagFull=false;
+    FVector2D Landing=FVector2D::ZeroVector;
+};
 struct FDungeonBlood { FVector2D Position; float Age=0,Size=80; int32 Variant=0; bool bRemains=false; };
 struct FDungeonImpact
 {
@@ -44,8 +57,9 @@ struct FDungeonImpact
 };
 struct FDungeonShot
 {
+    TWeakObjectPtr<class ADungeonEnemy> SourceEnemy;
     FVector2D Position,Velocity;
-    float Life=4,Radius=9,Damage=10;
+    float Life=4,Radius=9,Damage=10,HitHeight=0;
     int32 Style=1;
     int32 Art=3;
     FVector2D Origin,Target;
@@ -90,6 +104,17 @@ public:
     void ToggleMusic();
     void ToggleEffects();
     void Confirm();
+    void TestFinance();
+    void TestMack();
+    void TestWebroot();
+    void TestRime();
+    void TestCinder();
+    void TestIce();
+    void TestTwister();
+    void TestFlashBang();
+    void TestGreaseEnemies();
+    void TestBunkerEnemies();
+    void TestStormEnemies();
     bool IsRolling() const { return RollTime>0; }
     float RollProgress() const { return 1.f-RollTime/.48f; }
     float GetRollCooldown() const { return RollCooldown; }
@@ -97,7 +122,9 @@ public:
     void TransitionWalk(FVector2D From,FVector2D To,float Progress);
     void Interact();
     void Restart();
-    void ReceiveHit(float Damage);
+    void ReceiveHit(float Damage,bool PerProjectile=false);
+    bool IsBulletImmune() const;
+    FVector2D ScreenVelocity=FVector2D::ZeroVector;
     void Equip(const FDungeonItem& Item);
     void RebuildStats();
     bool HasEffect(int32 Effect) const;
@@ -105,6 +132,8 @@ public:
     int32 StrikeCount=0;
 #if !UE_BUILD_SHIPPING
     void SetReviewPose(int32 D,int32 F) { Facing=AttackDirection=D; AttackTime=.48f*(1.f-(F+.01f)/6.f); bAttackHit=true; }
+    void SetIdleReviewPose(int32 D,float Phase) { Facing=D;AttackTime=PowerCastTime=RollTime=0;bWalking=false;IdleBreathBlend=1;BreathPhase=Phase; }
+    void SetFlashReviewAim(FVector2D Direction) { Aim=Direction;Facing=DungeonView::Direction(Aim); }
 #endif
     void ToggleInventory();
     bool AddToInventory(const FDungeonItem& Item);
@@ -124,6 +153,13 @@ public:
     float GetAttackProgress() const { return 1.f-AttackTime/.48f; }
     FVector2D GetAim() const { return IsCasting()?PowerAim:IsAttacking()?AttackAim:Aim; }
     float Health=150,MaxHealth=150,AttackPower=24,Armor=8,HurtTime=0;
+    float StunTime=0,SlowTime=0,StatusClock=0;
+    float FlashBlindTime=0;
+    bool ApplyFlashBang(FVector2D Explosion,float Radius);
+    void ReceiveFlashStab();
+    float IdleBreathBlend=0,BreathPhase=0;
+    bool IsDamageImmune() const;
+    void ApplyBurgerStatus();
     TArray<FDungeonItem> Equipment;
     UPROPERTY(VisibleAnywhere) UCameraComponent* Camera;
 private:
@@ -153,6 +189,14 @@ public:
     int32 Species=0;
     int32 AttackCount=0;
     int32 BossAttack=0; // 0 close strike, 1 aimed volley, 2 heavy area strike, 3 radial barrage
+    float MotionClock=0,ActionTime=0,ActionDuration=0,ShotTimer=0,FlashTime=0;
+    int32 Action=0,ShotsRemaining=0,ShotSerial=0;
+    FVector2D ActionFrom,ActionTo;
+    float HealthLag=0;
+    void TickNewBoss(float Dt,ADungeonHero* H,ADungeonGameMode* G);
+    void TickFlashBoss(float Dt,ADungeonHero* H,ADungeonGameMode* G);
+    void BeginFlashAmbush(ADungeonHero* H,ADungeonGameMode* G);
+    FVector2D DrakeMouth() const;
     float BleedTime=0,PoisonTime=0,SlowTime=0,BleedDPS=0,PoisonDPS=0;
     float AilmentDamage=0,AilmentTick=0;
     void UpdateAilments(float Dt);
@@ -201,6 +245,9 @@ public:
     TArray<FDungeonBlood> Blood;
     void RestartRun();
     void StartGame();
+    void StartPlaytestRoom(int32 Number);
+    void CompleteRoom();
+    bool CanCollectReward(const ADungeonHero* Hero) const;
     void ToggleMenu();
     void StartTransition(int32 Door);
     void FireAttack(ADungeonEnemy* Enemy);
@@ -223,7 +270,19 @@ public:
     int32 GetDialogueCount() const { return DialogueLines.Num(); }
     bool CanAdvanceDialogue() const { return DialogueWait<=0; }
     float TransitionProgress() const { return 1.f-TransitionTime/2.f; }
-    int32 GetBiome() const { return ((Room-1)/4)%4; }
+    int32 GetBiome() const { return DungeonProgression::Themes[DungeonProgression::Chapter(Room)]; }
+    int32 GetBossSpecies() const { return DungeonProgression::Bosses[DungeonProgression::Chapter(Room)]; }
+    void FireThemeAttack(ADungeonEnemy* Enemy);
+    void VerifyProgression();
+    void ThrowFlashBang(ADungeonEnemy* Enemy);
+    void VerifyFlashBang();
+    void UpdateReward(float Dt);
+    bool InteractReward(ADungeonHero* H);
+    const FRewardPresentation& GetRewardPresentation() const { return Reward; }
+    void EmitBossShot(ADungeonEnemy* E,bool Burger);
+    void AddBossFX(FVector2D P,int32 Art);
+    void VerifySeptember();
+    void RunSeptemberSmoke();
     bool bShowControls=false;
     const TArray<FDungeonShot>& GetShots() const { return Shots; }
     void AddImpact(FVector2D P,float Damage,bool bBoss=false);
@@ -235,7 +294,7 @@ public:
     bool AreDoorsOpen() const { return bLootClaimed; }
     bool IsLootRevealed() const { return LootTimer>0; }
     bool IsDead() const;
-    bool IsBossRoom() const { return Room%4==0; }
+    bool IsBossRoom() const { return Room%DungeonProgression::RoomsPerChapter==0; }
     const FDungeonItem& GetLoot() const { return Loot; }
     const TArray<FDungeonImpact>& GetImpacts() const { return Impacts; }
     static FDungeonItem MakeItem(int32 Icon,int32 Rarity);
@@ -260,9 +319,11 @@ private:
     FString MusicName;
     bool bMusicMuted=false,bEffectsMuted=false;
     int32 Room=1,Wave=1,PendingSpawns=0;
+    int32 RosterCursor=0;
     float SpawnTimer=0,LootTimer=0,TransitionCooldown=0;
     bool bChest=false,bLootClaimed=false,bLootRolled=false;
     FDungeonItem Loot;
+    FRewardPresentation Reward;
     FDungeonItem ChestLoot[3];
     bool ChestRolled[3]={false,false,false};
     bool bMenu=true,bHasRun=false;
@@ -280,12 +341,19 @@ class THEBEARDANDBLADE_API ADungeonHUD : public AHUD
     GENERATED_BODY()
 public:
     virtual void DrawHUD() override;
+    virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     void InventoryClick();
     void CancelInventoryGesture();
     int32 VerifyInventoryGestures(ADungeonHero* H);
     void DialogueClick();
 private:
+    void UpdateFlashScreen();
+    TSharedPtr<SBackgroundBlur> FlashBlur;
+    TSharedPtr<SBorder> FlashWhite;
     void DrawDialogue(ADungeonGameMode* G,ADungeonHero* H);
+    void DrawReward(ADungeonGameMode* G,ADungeonHero* H);
+    void DrawBossUI(ADungeonEnemy* E);
+    void DrawStatus(FVector2D P,float Stun,float Slow,float Poison,float Bleed,bool Immune,float Clock);
     void DrawCombatFX(ADungeonGameMode* G,bool Foreground);
     void SpeechBubble(FVector2D Position,FVector2D Size,FVector2D Speaker);
     void DrawVitals(ADungeonHero* H);

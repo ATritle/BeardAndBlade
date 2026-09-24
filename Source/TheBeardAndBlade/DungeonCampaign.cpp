@@ -1,5 +1,6 @@
 #include "DungeonActors.h"
 #include "DungeonRoster.h"
+#include "HeroBreathing.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/World.h"
 #include "Engine/Texture2D.h"
@@ -9,6 +10,28 @@ void ADungeonGameMode::StartGame()
 {
     bMenu=false; bHasRun=true; bShowControls=false; RestartRun();
     PlaySound(TEXT("UI"));
+}
+void ADungeonHero::TestFinance() { if(auto* G=Cast<ADungeonGameMode>(UGameplayStatics::GetGameMode(this))) G->StartPlaytestRoom(3); }
+void ADungeonHero::TestMack() { if(auto* G=Cast<ADungeonGameMode>(UGameplayStatics::GetGameMode(this))) G->StartPlaytestRoom(6); }
+void ADungeonHero::TestWebroot() { if(auto* G=Cast<ADungeonGameMode>(UGameplayStatics::GetGameMode(this))) G->StartPlaytestRoom(12); }
+void ADungeonHero::TestRime() { if(auto* G=Cast<ADungeonGameMode>(UGameplayStatics::GetGameMode(this))) G->StartPlaytestRoom(15); }
+void ADungeonHero::TestCinder() { if(auto* G=Cast<ADungeonGameMode>(UGameplayStatics::GetGameMode(this))) G->StartPlaytestRoom(18); }
+void ADungeonHero::TestIce() { if(auto* G=Cast<ADungeonGameMode>(UGameplayStatics::GetGameMode(this))) G->StartPlaytestRoom(13); }
+void ADungeonHero::TestTwister() { if(auto* G=Cast<ADungeonGameMode>(UGameplayStatics::GetGameMode(this))) G->StartPlaytestRoom(21); }
+void ADungeonHero::TestFlashBang() { if(auto* G=Cast<ADungeonGameMode>(UGameplayStatics::GetGameMode(this))) G->StartPlaytestRoom(9); }
+void ADungeonHero::TestGreaseEnemies() { if(auto* G=Cast<ADungeonGameMode>(UGameplayStatics::GetGameMode(this))) G->StartPlaytestRoom(4); }
+void ADungeonHero::TestBunkerEnemies() { if(auto* G=Cast<ADungeonGameMode>(UGameplayStatics::GetGameMode(this))) G->StartPlaytestRoom(7); }
+void ADungeonHero::TestStormEnemies() { if(auto* G=Cast<ADungeonGameMode>(UGameplayStatics::GetGameMode(this))) G->StartPlaytestRoom(19); }
+void ADungeonGameMode::StartPlaytestRoom(int32 Number)
+{
+#if WITH_EDITOR
+    StartGame();Room=FMath::Clamp(Number,1,DungeonProgression::CampaignRooms);SpawnWave();
+    if(auto* H=Cast<ADungeonHero>(UGameplayStatics::GetPlayerPawn(this,0)))
+    {
+        H->Equip(RollItem(0,3,Room));H->Equip(RollItem(24,3,Room));H->Health=H->MaxHealth;
+    }
+    UE_LOG(LogTemp,Display,TEXT("ROOM_FLOW editor playtest reset to room=%d"),Room);
+#endif
 }
 void ADungeonGameMode::ToggleMenu()
 {
@@ -34,6 +57,10 @@ void ADungeonEnemy::Tick(float Dt)
     const auto& S=DungeonRoster::Get(Species);
     HurtTime=FMath::Max(0.f,HurtTime-Dt); bWalking=false;
     UpdateAilments(Dt); if(Health<=0||IsActorBeingDestroyed()) return;
+    MotionClock+=Dt;
+    HealthLag=HealthLag<=0?Health:FMath::Max(Health,HealthLag-Dt*MaxHealth*.3f);
+    if(Species==30) { TickFlashBoss(Dt,H,G); return; }
+    if(Species==28||Species==29) { TickNewBoss(Dt,H,G); return; }
     const float MoveScale=SlowTime>0?.65f:1.f;
     if(SpawnTime>0) { SpawnTime=FMath::Max(0.f,SpawnTime-Dt); return; }
     const FVector2D P=DungeonView::Project(GetActorLocation()),Target=DungeonView::Project(H->GetActorLocation());
@@ -97,18 +124,54 @@ void ADungeonEnemy::Tick(float Dt)
 int32 ADungeonEnemy::AnimationFrame() const
 {
     const auto& S=DungeonRoster::Get(Species);
+    // Frames 5/6 contain baked fire across the torso. Keep the clean open jaw
+    // and draw/emit fire separately from its mouth socket instead.
+    if(Species==19&&(Windup>0||Recovery>S.Recovery-.22f)) return 4;
+    if(Species==19&&Recovery>0&&!bWalking) return 7;
     if(Windup>0) return Windup>(bBoss?AttackWindup:S.Windup)*.5f?4:5;
     if(ChargeTime>0) return 6;
     if(Recovery>0&&!bWalking) return Recovery>S.Recovery-.22f?6:7;
     return (bWalking||S.Flying)?(int32)((WalkDistance+ (S.Flying?GetWorld()->GetTimeSeconds()*30:0))/10.f)%4:0;
 }
+FVector2D ADungeonEnemy::DrakeMouth() const
+{
+    const float Time=GetWorld()->GetTimeSeconds(),Size=DungeonRoster::RenderSize(19);
+    const float Breath=1.f+FMath::Sin(Time*(IsWalking()?5.5f:2.5f)+19)*.012f;
+    const float Lift=18+FMath::Sin(Time*4+19)*5;
+    // Measured jaw opening in Creature_19_4's 128x128 canvas; mirror with the sprite.
+    return DungeonView::Project(GetActorLocation())+FVector2D((Facing==3?-40.f:40.f)*Size/128.f,(66.f-116.f)*Size/128.f*Breath-Lift);
+}
 void ADungeonGameMode::FireAttack(ADungeonEnemy* E)
 {
     if(IsGameplayBlocked()) return;
     auto* H=Cast<ADungeonHero>(UGameplayStatics::GetPlayerPawn(this,0)); if(!H||!IsValid(E)) return;
+    if(E->Species==30) { ThrowFlashBang(E); return; }
+    if(E->Species==28||E->Species==29) { EmitBossShot(E,E->Species==28); return; }
+    if(E->Species>=31) { FireThemeAttack(E); return; }
     const auto& S=DungeonRoster::Get(E->Species);
     PlaySound(E->Species==24?TEXT("Paper"):S.AttackStyle==0?TEXT("Sword"):S.AttackStyle==4?TEXT("Explosion"):S.AttackStyle==2?TEXT("Roll"):TEXT("Magic"),.65f);
     const FVector2D P=DungeonView::Project(E->GetActorLocation());
+    if(E->Species==19)
+    {
+        const auto Mouth=E->DrakeMouth();
+        const auto Target=E->AttackTarget-FVector2D(0,65);
+        const float Side=E->Facing==3?-1.f:1.f;
+        const auto Raw=(Target-Mouth).GetSafeNormal();
+        // A two-facing dragon cannot breathe backward through its chest.
+        const float Angle=FMath::Clamp(float(FMath::Atan2(Raw.Y,FMath::Max(.001,Raw.X*Side))),-.9f,.9f);
+        const FVector2D Aim(Side*FMath::Cos(Angle),FMath::Sin(Angle));E->ChargeAim=Aim;
+        for(int I=-1;I<=1;++I)
+        {
+            const float A=FMath::Atan2(Aim.Y,Aim.X)+I*.12f;
+            FDungeonShot Shot;Shot.Style=12;Shot.Art=4;Shot.Origin=Mouth;
+            Shot.Position=Mouth+Aim*22;Shot.Target=Target;Shot.Radius=8;
+            Shot.Damage=S.Damage*1.8f;Shot.BlastRadius=48;
+            Shot.Velocity=FVector2D(FMath::Cos(A),FMath::Sin(A))*240;
+            Shot.Life=Shot.FlightTime=FMath::Clamp(float(FVector2D::Distance(Mouth,Target)/240.f),.55f,2.7f);
+            Shots.Add(Shot);
+        }
+        return;
+    }
     if(E->bBoss)
     {
         const int Art=E->Species==24?(E->BossAttack==2?2:1):E->Species==25?6:E->Species==26?5:4;
@@ -178,6 +241,17 @@ void ADungeonGameMode::VerifyCampaign()
     Check(H!=nullptr,TEXT("Hero exists")); if(!H) { FPlatformMisc::RequestExitWithStatus(false,1);return; }
     Check(bMenu&&PendingSpawns==0,TEXT("Starts at menu with no combat"));
     StartGame(); Check(!bMenu&&PendingSpawns>0,TEXT("Start menu begins run"));
+    H->Tick(.25f);Check(H->IdleBreathBlend>0&&H->BreathPhase>0,TEXT("Standing still begins recovery breathing"));
+    const float RestPhase=H->BreathPhase;H->ToggleInventory();H->Tick(.5f);
+    Check(H->BreathPhase==RestPhase,TEXT("Inventory pauses breathing"));H->ToggleInventory();
+    for(float Phase:{0.f,PI*.5f,PI,PI*1.5f})
+    {
+        Check(HeroBreathing::Map(FVector2D(50,116),Phase,1,1).Equals(FVector2D(50,116),.001),TEXT("Breathing feet stay planted"));
+        float Previous=-100;
+        for(int Y=0;Y<=128;++Y) {const float Mapped=HeroBreathing::Map(FVector2D(64,Y),Phase,1,1).Y;
+            Check(Mapped>Previous,TEXT("Breathing strips never fold or overlap"));Previous=Mapped;}
+    }
+    Check(HeroBreathing::Map(FVector2D(64,40),PI,1,0).Y<38,TEXT("Visible shoulder/head lift on inhale"));H->Restart();
     for(int Id=0;Id<48;++Id) for(int R=0;R<5;++R)
     {
         const auto Item=RollItem(Id,R,4);
@@ -260,21 +334,36 @@ void ADungeonGameMode::VerifyCampaign()
         const int Style=DungeonRoster::Get(S).AttackStyle; Shots.Empty(); FireAttack(E);
         Check(Style!=2||E->ChargeTime>0,TEXT("Charge attack starts"));
         Check(Style==0||Style==2||(Style==4&&S!=27)||Shots.Num()>0,TEXT("Ranged attack creates projectiles"));
+        if(S==19)
+        {
+            for(int Facing:{1,3})
+            {
+                E->Facing=Facing;E->SetActorLocation(DungeonView::Unproject(FVector2D(640,490)));
+                E->AttackTarget=FVector2D(Facing==1?950:330,440);Shots.Empty();FireAttack(E);
+                const auto Mouth=E->DrakeMouth();
+                Check(Shots.Num()==3,TEXT("Drake retains three flame projectiles"));
+                for(const auto& Shot:Shots)
+                    Check(Shot.Style==12&&Shot.Origin.Equals(Mouth,.01)&&Shot.Velocity.X*(Facing==1?1:-1)>0,TEXT("Drake fire starts at mirrored mouth and moves away from torso"));
+                E->Windup=.3f;Check(E->AnimationFrame()==4,TEXT("Drake windup uses clean open mouth"));
+                E->Windup=0;E->Recovery=2;Check(E->AnimationFrame()==4,TEXT("Drake emission has no baked torso flame"));
+            }
+        }
         E->Destroy(); H->Restart();
     }
     Shots.Empty();
-    for(int R=1;R<=16;++R)
+    for(int R=1;R<=DungeonProgression::CampaignRooms;++R)
     {
         Check(Room==R,TEXT("Sequential room progression"));
-        Check(IsBossRoom()==(R%4==0),TEXT("Boss every fourth room"));
-        Check(GetBiome()==(R-1)/4,TEXT("Four-room biome progression"));
+        Check(IsBossRoom()==(R%3==0),TEXT("Boss every third room"));
+        const int32 ExpectedThemes[]={0,6,5,1,2,3,4};
+        Check(GetBiome()==ExpectedThemes[((R-1)/3)%7],TEXT("Boss-matched three-room biome progression"));
         int Guard=0;
         while(!bChest&&++Guard<20)
         {
             while(PendingSpawns>0) { SpawnOneEnemy(); --PendingSpawns; }
             if(IsBossRoom())
             {
-                Check(Enemies.Num()==1&&Enemies[0]->Species==24+GetBiome(),TEXT("Correct unique boss"));
+                Check(Enemies.Num()==1&&Enemies[0]->Species==GetBossSpecies(),TEXT("Correct unique boss"));
                 Check(IsBossDialogueActive()&&IsGameplayBlocked(),TEXT("Boss introduction blocks combat"));
                 const float BossHP=Enemies[0]->Health,HeroHP=H->Health;
                 const FVector HeroPos=H->GetActorLocation(),BossPos=Enemies[0]->GetActorLocation();
@@ -283,13 +372,13 @@ void ADungeonGameMode::VerifyCampaign()
                 Check(H->Health==HeroHP&&Enemies[0]->Health==BossHP&&H->GetActorLocation().Equals(HeroPos)&&Enemies[0]->GetActorLocation().Equals(BossPos),TEXT("Conversation freezes movement and damage"));
                 AdvanceBossDialogue(); Check(DialogueIndex==0,TEXT("Initial settling delay blocks accidental click"));
                 Tick(.9f);
-                if(R==8) AdvanceBossDialogue(true);
+                if(R==6) AdvanceBossDialogue(true);
                 else while(IsBossDialogueActive()) { AdvanceBossDialogue(); Tick(.2f); }
                 Check(!IsBossDialogueActive()&&IsGameplayBlocked(),TEXT("Closing dialogue provides combat grace"));
                 H->Attack(); Check(!H->IsAttacking(),TEXT("Closing grace cannot trigger sword"));
                 Tick(.8f); Check(!IsGameplayBlocked(),TEXT("Battle starts after dialogue"));
                 auto* Boss=Enemies[0].Get(); Boss->SpawnTime=0;
-                for(int Move=0;Move<4;++Move)
+                for(int Move=0;Move<4&&Boss->Species<28;++Move)
                 {
                     H->Restart(); Shots.Empty(); Splashes.Empty();
                     Boss->BossAttack=Move; Boss->AttackRadius=Move==2?145:115;
@@ -310,12 +399,13 @@ void ADungeonGameMode::VerifyCampaign()
         {
             H->Inventory.Empty(); for(int I=0;I<18;++I) H->AddToInventory(MakeItem(0,0));
             H->SetActorLocation(DungeonView::Unproject(ChestPosition(0))); PlayerInteract(H);
-            const auto Held=ChestLoot[0]; PlayerInteract(H);
+            const auto Held=ChestLoot[0]; UpdateReward(2); H->SetActorLocation(DungeonView::Unproject(Reward.Landing)); PlayerInteract(H);
             Check(bChest&&!bLootClaimed&&ChestRolled[0]&&ChestLoot[0].Name==Held.Name,TEXT("Full bag preserves reward and choices"));
         }
-        H->Inventory.Empty(); const int Choice=(R-1)%3;
+        H->Inventory.Empty(); const int Choice=R==1?0:(R-1)%3;
         H->SetActorLocation(DungeonView::Unproject(ChestPosition(Choice)));
         const float ATK=H->AttackPower; PlayerInteract(H);
+        UpdateReward(2); H->SetActorLocation(DungeonView::Unproject(Reward.Landing)); PlayerInteract(H);
         Check(H->Inventory.Num()==1&&H->Inventory[0].Item.Icon==ChestLoot[Choice].Icon&&H->Inventory[0].Item.Rarity==ChestLoot[Choice].Rarity,TEXT("Chosen random chest item enters inventory"));
         Check(!bChest&&bLootClaimed&&H->AttackPower==ATK,TEXT("Other chests vanish without auto-equip"));
         PlayerInteract(H); Check(H->Inventory.Num()==1,TEXT("No second chest reward"));
