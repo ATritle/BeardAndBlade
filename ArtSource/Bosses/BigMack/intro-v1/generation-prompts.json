@@ -1,0 +1,13 @@
+{
+  "tool": "built-in image_gen",
+  "prompts": [
+    {
+      "file": "big-mack-character.png",
+      "prompt": "Create a single large isolated boss-intro character asset for BIG MACK, faithfully using the attached existing game boss reference. Exactly the SAME angry anthropomorphic double cheeseburger: golden sesame bun with angry white eyes/black pupils, open mouth with irregular teeth and red tongue, green lettuce and red tomato, TWO dark beef patties with melted yellow cheese, bottom bun, muscular orange arms ending in fists. No legs, no weapons, no costume. Exaggerated powerful fists raised outward as if landing from a hop. Entire body and fists visible with generous transparent margin. High-quality richly detailed PIXEL ART, crisp square clusters and dark stepped outlines, retro 32-bit game splash quality; no smooth painting. Preserve original recognizable proportions and palette. One character only, no pose sheet, no small burger projectiles, no floating debris, no title/text, no frame, no background or glow cloud. Genuine alpha transparency. This is an independently animated overlay on an actual dungeon. Square format."
+    },
+    {
+      "file": "big-mack-title.png",
+      "prompt": "Create a standalone horizontal BIG MACK boss name graphic on genuine transparent background. Match the top row BIG MACK title style of attached approved boss UI sheet: rich detailed pixel art, chunky classic fantasy serif uppercase letters, golden beveled faces, dark bronze/iron dimensional outline, small lettuce and tomato corner accents and melted yellow cheese drips. EXACT text 'BIG MACK' on ONE wide line for a cinematic bottom-screen title, easy to read. Compact ornate treatment, not soft bubbly cartoon letters. Small sesame bun ornament optional above middle, no character portrait, no arms, no Twister, no health bar, no background, no frame around whole image. Generous empty transparent padding on all sides. High quality crisp retro pixel clusters and stepped edges. Name only and closely attached burger ingredient trim; no extra words. Wide 3:1 format."
+    }
+  ]
+}
