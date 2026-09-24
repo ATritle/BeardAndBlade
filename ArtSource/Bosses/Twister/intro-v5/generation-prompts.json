@@ -1,0 +1,14 @@
+{
+  "tool": "built-in image_gen",
+  "reference": "../intro-v2/twister-intro-overlay.png",
+  "prompts": [
+    {
+      "file": "twister-character.png",
+      "prompt": "Edit the supplied Twister boss intro overlay into a CHARACTER ONLY transparent PNG. Remove the entire TWISTER wording/nameplate, all title ornaments, ALL entrance streaks, gold impact rays and background effects. Retain ONLY the exact red-orange tornado character, its angry white eyes, white gloved hands, and BOTH red/black M4 rifles. Preserve approved pixel-art design, colors, pose and weapon shapes. Reconstruct the lower tornado point where the lettering previously overlapped it so the funnel ends naturally. No text, no floor, no background, no circle, no debris. Genuine alpha transparency in all surrounding space and gaps. Center complete character with generous padding, no clipping. Crisp high-quality pixel art, not smooth painting."
+    },
+    {
+      "file": "twister-title.png",
+      "prompt": "Extract/recreate ONLY the approved TWISTER name graphic from this image as a standalone high-quality pixel-art transparent PNG. Exact text TWISTER. Preserve its ornate chunky beveled fantasy serif lettering, orange and gold illuminated faces, dark gunmetal thick dimensional outline, red highlights, compact proportions and swirling red-orange underline flourish. REMOVE tornado character, eyes, gloves, rifles, background, speed streaks and impact blast. One centered horizontal title with generous transparent margins, no cropping. Genuine alpha transparency everywhere outside the title and its closely attached underline. No solid backing rectangle, no other text. This title is a separate animation layer for a dramatic delayed boss name reveal."
+    }
+  ]
+}
