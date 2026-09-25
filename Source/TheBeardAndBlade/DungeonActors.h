@@ -104,6 +104,8 @@ public:
     void ToggleMusic();
     void ToggleEffects();
     void Confirm();
+    void SkipIntro();
+    void ToggleIntroMotion();
     void TestFinance();
     void TestMack();
     void TestWebroot();
@@ -224,6 +226,7 @@ class THEBEARDANDBLADE_API ADungeonGameMode : public AGameModeBase
     GENERATED_BODY()
 public:
     ADungeonGameMode();
+    virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     virtual void BeginPlay() override;
     virtual void Tick(float Dt) override;
     void PlayerAttack(ADungeonHero* Hero);
@@ -244,6 +247,14 @@ public:
     float FreedomProgress() const { return 1.f-FreedomTime/3.f; }
     TArray<FDungeonBlood> Blood;
     void RestartRun();
+    void FinishRun(bool Victory);
+    void UpdateEnding(float Dt);
+    void RestartFromEnding();
+    void VerifyEndings();
+    void RunEndingPreview();
+    bool HasEnding() const { return EndState!=0; }
+    bool IsVictory() const { return EndState==2; }
+    float GetEndingTime() const { return EndTime; }
     void StartGame();
     void StartPlaytestRoom(int32 Number);
     void CompleteRoom();
@@ -260,7 +271,16 @@ public:
     bool IsMenu() const { return bMenu; }
     bool HasRun() const { return bHasRun; }
     bool IsTransitioning() const { return TransitionTime>0; }
-    bool IsGameplayBlocked() const { return bMenu||IsTransitioning()||IsBossDialogueActive()||BossGrace>0; }
+    bool IsGameplayBlocked() const { return HasEnding()||bMenu||IsTransitioning()||IsBossIntroActive()||IsBossDialogueActive()||BossGrace>0; }
+    bool IsBossIntroActive() const { return BossIntroTime>=0; }
+    float GetBossIntroTime() const { return BossIntroTime; }
+    bool IsIntroReducedMotion() const { return bIntroReducedMotion; }
+    void StartBossIntro();
+    void FinishBossIntro();
+    void CancelBossIntro();
+    void UpdateBossIntro(float Dt);
+    void ToggleIntroMotion();
+    void VerifyBossIntro();
     bool IsBossDialogueActive() const { return DialogueIndex<DialogueLines.Num(); }
     void BeginBossDialogue();
     void AdvanceBossDialogue(bool Skip=false);
@@ -304,6 +324,9 @@ public:
     static FVector2D ChestPosition(int32 I) { return FVector2D(390+I*250,440); }
 private:
     bool bFreedomResolved=false;
+    float BossIntroTime=-1;
+    bool bIntroReducedMotion=false;
+    UPROPERTY() TObjectPtr<UAudioComponent> IntroAudio;
     TArray<FString> DialogueLines;
     int32 DialogueIndex=0;
     float DialogueWait=0,BossGrace=0;
@@ -327,6 +350,9 @@ private:
     FDungeonItem ChestLoot[3];
     bool ChestRolled[3]={false,false,false};
     bool bMenu=true,bHasRun=false;
+    int32 EndState=0;
+    float EndTime=0;
+    bool bEndingCleaned=false;
     float TransitionTime=0;
     int32 TransitionDoor=1;
     FVector2D TransitionFrom;
@@ -346,11 +372,14 @@ public:
     void CancelInventoryGesture();
     int32 VerifyInventoryGestures(ADungeonHero* H);
     void DialogueClick();
+    void EndingClick();
+    void PreloadBossIntro(int32 Species);
 private:
     void UpdateFlashScreen();
     TSharedPtr<SBackgroundBlur> FlashBlur;
     TSharedPtr<SBorder> FlashWhite;
     void DrawDialogue(ADungeonGameMode* G,ADungeonHero* H);
+    void DrawBossIntro(ADungeonGameMode* G);
     void DrawReward(ADungeonGameMode* G,ADungeonHero* H);
     void DrawBossUI(ADungeonEnemy* E);
     void DrawStatus(FVector2D P,float Stun,float Slow,float Poison,float Bleed,bool Immune,float Clock);
@@ -367,6 +396,7 @@ private:
     double LastClickTime=-1;
     FVector2D DragStart,DragGrab,DragMouse,LastClickPosition;
     void DrawMenu(ADungeonGameMode* G);
+    void DrawEnding(ADungeonGameMode* G);
     UTexture2D* Texture(const FString& Name);
     void Sprite(const FString& Name,float X,float Y,float W,float H,FLinearColor Tint=FLinearColor::White,float Rotation=0,FVector2D Pivot=FVector2D(.5,.5));
     void KeySprite(const FString& Name,float X,float Y,float W,float H,FLinearColor Tint,bool Flip=false,float Rotation=0);

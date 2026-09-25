@@ -35,6 +35,7 @@ void ADungeonGameMode::StartPlaytestRoom(int32 Number)
 }
 void ADungeonGameMode::ToggleMenu()
 {
+    if(HasEnding()) return;
     if(IsTransitioning()) return;
     if(auto* H=Cast<ADungeonHero>(UGameplayStatics::GetPlayerPawn(this,0))) if(H->IsInventoryOpen()) H->ToggleInventory();
     if(bMenu&&!bHasRun) { StartGame(); return; }
@@ -43,6 +44,7 @@ void ADungeonGameMode::ToggleMenu()
 }
 void ADungeonGameMode::StartTransition(int32 Door)
 {
+    if(HasEnding()) return;
     if(!bLootClaimed||TransitionTime>0||!Enemies.IsEmpty()||PendingSpawns>0) return;
     TransitionDoor=FMath::Clamp(Door,0,2); TransitionTime=2.f; Shots.Empty(); Splashes.Empty();
     PlaySound(TEXT("Portal"));
@@ -358,7 +360,7 @@ void ADungeonGameMode::VerifyCampaign()
         const int32 ExpectedThemes[]={0,6,5,1,2,3,4};
         Check(GetBiome()==ExpectedThemes[((R-1)/3)%7],TEXT("Boss-matched three-room biome progression"));
         int Guard=0;
-        while(!bChest&&++Guard<20)
+        while(!bChest&&!HasEnding()&&++Guard<20)
         {
             while(PendingSpawns>0) { SpawnOneEnemy(); --PendingSpawns; }
             if(IsBossRoom())
@@ -393,6 +395,11 @@ void ADungeonGameMode::VerifyCampaign()
             const auto Batch=Enemies;
             for(auto& E:Batch) { E->SpawnTime=0; E->TakeDungeonDamage(100000); }
             if(IsBossRoom()) Check(!Potions.IsEmpty(),TEXT("Boss guarantees potion drop"));
+        }
+        if(R==DungeonProgression::CampaignRooms)
+        {
+            Check(IsVictory()&&!bChest&&Enemies.IsEmpty(),TEXT("Final boss ends campaign instead of offering another gateway"));
+            RestartRun();break;
         }
         Check(bChest&&Enemies.IsEmpty(),TEXT("Clear spawns chest choices"));
         if(R==1)

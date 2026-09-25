@@ -2,7 +2,7 @@
 from pathlib import Path
 import zipfile,hashlib,argparse
 parser=argparse.ArgumentParser()
-parser.add_argument('--version',default='v0.3.0-playtest')
+parser.add_argument('--version',default='v0.3.1')
 args=parser.parse_args()
 assert all(c.isalnum() or c in '.-_' for c in args.version)
 root=Path(__file__).resolve().parents[1]

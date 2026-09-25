@@ -183,6 +183,7 @@ void ADungeonHero::SetupPlayerInputComponent(UInputComponent* I)
     I->BindAction("Dodge",IE_Pressed,this,&ADungeonHero::Dodge);
     I->BindAction("Menu",IE_Pressed,this,&ADungeonHero::Menu);
     I->BindAction("Confirm",IE_Pressed,this,&ADungeonHero::Confirm);
+    I->BindKey(EKeys::R,IE_Pressed,this,&ADungeonHero::ToggleIntroMotion);
     I->BindAction("Sprint",IE_Pressed,this,&ADungeonHero::SprintPressed);
     I->BindAction("Sprint",IE_Released,this,&ADungeonHero::SprintReleased);
 #if WITH_EDITOR
@@ -214,6 +215,8 @@ void ADungeonHero::Attack()
     if(StunTime>0) return;
     if(auto* G=Mode(this))
     {
+        if(G->HasEnding()) { if(auto* PC=Cast<APlayerController>(GetController())) if(auto* HUD=Cast<ADungeonHUD>(PC->GetHUD())) HUD->EndingClick(); return; }
+        if(G->IsBossIntroActive()&&!G->IsMenu()) { SkipIntro();return; }
         if(G->IsMenu()) { if(auto* PC=Cast<APlayerController>(GetController())) if(auto* HUD=Cast<ADungeonHUD>(PC->GetHUD())) HUD->InventoryClick(); return; }
         if(G->IsBossDialogueActive()) { if(auto* PC=Cast<APlayerController>(GetController())) if(auto* HUD=Cast<ADungeonHUD>(PC->GetHUD())) HUD->DialogueClick(); return; }
         if(G->IsGameplayBlocked()) return;
@@ -298,6 +301,7 @@ void ADungeonHero::ReceiveHit(float Damage,bool PerProjectile)
 }
 void ADungeonHero::Dodge()
 {
+    if(auto* Intro=Mode(this))if(Intro->IsBossIntroActive()){SkipIntro();return;}
     if(StunTime>0) return;
     auto* G=Mode(this);
     if(!G||G->IsGameplayBlocked()||bInventoryOpen||Health<=0||RollCooldown>0||IsCasting()||bExhausted||Stamina<30) return;
@@ -308,7 +312,7 @@ void ADungeonHero::Dodge()
     G->PlaySound(TEXT("Roll"));
 }
 void ADungeonHero::Menu() { if(auto* G=Mode(this)) G->ToggleMenu(); }
-void ADungeonHero::Confirm() { if(auto* G=Mode(this)) if(G->IsMenu()) { if(G->HasRun()) G->ToggleMenu(); else G->StartGame(); } }
+void ADungeonHero::Confirm() { if(auto* G=Mode(this)) {if(G->HasEnding()){G->RestartFromEnding();return;}if(G->IsBossIntroActive()&&!G->IsMenu()){SkipIntro();return;}if(G->IsMenu()) { if(G->HasRun()) G->ToggleMenu(); else G->StartGame(); }} }
 void ADungeonHero::TransitionWalk(FVector2D From,FVector2D To,float Progress)
 {
     SetActorLocation(DungeonView::Unproject(FMath::Lerp(From,To,Progress)));
@@ -358,6 +362,8 @@ void ADungeonGameMode::BeginPlay()
     if(FParse::Param(FCommandLine::Get(),TEXT("SeptemberVerify"))) { VerifySeptember(); return; }
     if(FParse::Param(FCommandLine::Get(),TEXT("FlashVerify"))) { VerifyFlashBang(); return; }
     if(FParse::Param(FCommandLine::Get(),TEXT("ProgressionVerify"))) { VerifyProgression(); return; }
+    if(FParse::Param(FCommandLine::Get(),TEXT("IntroVerify"))) { VerifyBossIntro(); return; }
+    if(FParse::Param(FCommandLine::Get(),TEXT("EndingVerify"))) { VerifyEndings(); return; }
     if(FParse::Param(FCommandLine::Get(),TEXT("DungeonVerify"))) VerifyCampaign();
     if(FParse::Param(FCommandLine::Get(),TEXT("DungeonCapture"))&&!FParse::Param(FCommandLine::Get(),TEXT("DungeonMenuPreview"))) { bMenu=false; bHasRun=true; SpawnWave(); }
     int32 PreviewBiome=0;
@@ -370,6 +376,9 @@ void ADungeonGameMode::BeginPlay()
 void ADungeonGameMode::Tick(float Dt)
 {
     Super::Tick(Dt);
+    RunEndingPreview();
+    if(!HasEnding()&&IsDead()) FinishRun(false);
+    if(HasEnding()) { UpdateEnding(Dt);UpdateAudio();return; }
     UpdateAudio();
     RunPackagedSmokeTest();
     RunSeptemberSmoke();
@@ -397,7 +406,7 @@ void ADungeonGameMode::Tick(float Dt)
             if(FParse::Param(FCommandLine::Get(),TEXT("DungeonFlashPreview")))
             {
                 PendingSpawns=0;for(auto& E:Enemies)if(IsValid(E))E->Destroy();Enemies.Empty();Shots.Empty();
-                SpawnOneEnemy();DialogueLines.Empty();BossGrace=0;
+                SpawnOneEnemy();CancelBossIntro();DialogueLines.Empty();BossGrace=0;
                 for(auto& E:Enemies){E->SpawnTime=0;E->Action=1;E->ActionTime=.5f;E->ActionDuration=1.2f;E->Facing=6;E->SetActorTickEnabled(false);}
                 if(auto* H=Player(this)){H->SetActorLocation(DungeonView::Unproject(FVector2D(650,610)));H->SetFlashReviewAim(FVector2D(0,FParse::Param(FCommandLine::Get(),TEXT("ReviewLeft"))?1:-1));H->SetActorTickEnabled(false);}
                 FDungeonShot Grenade;Grenade.Style=13;Grenade.Art=20;Grenade.BlastRadius=300;Grenade.Origin=Grenade.Position=FVector2D(615,350);Grenade.Target=FVector2D(650,510);Grenade.FlightTime=.8f;Grenade.Life=2.25f;Shots.Add(Grenade);
@@ -467,6 +476,7 @@ void ADungeonGameMode::Tick(float Dt)
         if(Prepared&&FParse::Param(FCommandLine::Get(),TEXT("DungeonDrakePreview"))) return;
     }
 #endif
+    if(IsBossIntroActive()) { UpdateBossIntro(Dt);return; }
     if(bMenu) return;
     if(IsBossDialogueActive()) { DialogueWait=FMath::Max(0.f,DialogueWait-Dt); return; }
     if(BossGrace>0) { BossGrace=FMath::Max(0.f,BossGrace-Dt); return; }
@@ -510,13 +520,16 @@ void ADungeonGameMode::SpawnWave()
 }
 void ADungeonGameMode::CompleteRoom()
 {
+    if(HasEnding()) return;
     if(!Enemies.IsEmpty()||PendingSpawns>0||bChest||bLootClaimed) return;
+    if(Room>=DungeonProgression::CampaignRooms) { FinishRun(!IsDead());return; }
     SpawnTimer=0;
     Reward=FRewardPresentation();bChest=true;
     UE_LOG(LogTemp,Display,TEXT("ROOM_FLOW room=%d reward ready; no live or queued enemies"),Room);
 }
 void ADungeonGameMode::SpawnOneEnemy()
 {
+    if(HasEnding()) return;
     if(bChest||bLootClaimed||IsTransitioning())
     {
         UE_LOG(LogTemp,Warning,TEXT("ROOM_FLOW blocked late spawn in reward/transition room=%d"),Room);
@@ -637,7 +650,9 @@ void ADungeonGameMode::PlayerInteract(ADungeonHero* H)
 }
 void ADungeonGameMode::NextRoom()
 {
+    if(HasEnding()) return;
     if(!bLootClaimed||!Enemies.IsEmpty()||PendingSpawns>0) return;
+    CancelBossIntro();
     FreedomTime=0;bFreedomResolved=false;
     Reward=FRewardPresentation();
     if(auto* H=Player(this)) H->StunTime=H->SlowTime=H->FlashBlindTime=0;
@@ -652,6 +667,8 @@ void ADungeonGameMode::NextRoom()
 }
 void ADungeonGameMode::RestartRun()
 {
+    EndState=0;EndTime=0;bEndingCleaned=false;
+    CancelBossIntro();
     Reward=FRewardPresentation();
     Blood.Empty(); FreedomKills=0; FreedomTime=0; bFreedomResolved=false;
     Potions.Empty();
@@ -675,7 +692,7 @@ UTexture2D* ADungeonHUD::Texture(const FString& Name)
 {
     if(auto* T=Textures.Find(Name)) return *T;
     const bool NewArt=Name.StartsWith(TEXT("Flash"))||Name.StartsWith(TEXT("Mack_"))||Name.StartsWith(TEXT("Twister_"))||Name.StartsWith(TEXT("BossPortrait_"))||Name.StartsWith(TEXT("BossName_"))||Name.StartsWith(TEXT("BossBorder_"))||Name.StartsWith(TEXT("Status_"))||Name.StartsWith(TEXT("RewardChest_"))||Name.StartsWith(TEXT("RarityGlow_"))||Name.StartsWith(TEXT("LootEffect_"))||Name.StartsWith(TEXT("BurgerSplat_"))||Name.StartsWith(TEXT("FoodDebris_"))||Name.StartsWith(TEXT("MackLanding_"));
-    FString Path=FString::Printf(TEXT("/Game/Art/%s/%s.%s"),Name.StartsWith(TEXT("Theme"))?TEXT("Progression"):NewArt?TEXT("September"):TEXT("V2"),*Name,*Name);
+    FString Path=FString::Printf(TEXT("/Game/Art/%s/%s.%s"),Name.StartsWith(TEXT("Ending"))?TEXT("Endings"):Name.StartsWith(TEXT("Intro"))?TEXT("Intros"):Name.StartsWith(TEXT("Theme"))?TEXT("Progression"):NewArt?TEXT("September"):TEXT("V2"),*Name,*Name);
     auto* T=LoadObject<UTexture2D>(nullptr,*Path);
 #if WITH_EDITOR
     if(T&&T->IsCompiling())
@@ -1090,6 +1107,7 @@ void ADungeonHUD::DrawHUD()
     Scale=FMath::Min(Canvas->SizeX/1280.f,Canvas->SizeY/800.f);
     Offset=FVector2D((Canvas->SizeX-1280*Scale)/2,(Canvas->SizeY-800*Scale)/2);
     DrawRect(FLinearColor(.005f,.008f,.012f),0,0,Canvas->SizeX,Canvas->SizeY);
+    if(G->HasEnding()) { DrawEnding(G);return; }
     if(G->IsMenu()) { DrawMenu(G); return; }
     const FVector2D StableOffset=Offset;
     if(G->IsFreedomActive())
@@ -1098,6 +1116,7 @@ void ADungeonHUD::DrawHUD()
         Offset+=FVector2D(FMath::Sin(T*71)*5,FMath::Cos(T*57)*4)*Scale;
     }
     Sprite(G->GetBiome()==0?TEXT("Arena"):FString::Printf(TEXT("Arena%d"),G->GetBiome()),0,0,1280,800);
+    if(G->IsBossIntroActive()){DrawBossIntro(G);return;}
 #if !UE_BUILD_SHIPPING
     if(FParse::Param(FCommandLine::Get(),TEXT("DungeonHealthBarsPreview"))&&!G->GetEnemies().IsEmpty())
     {
@@ -1351,12 +1370,6 @@ void ADungeonHUD::DrawHUD()
     }
     DrawDialogue(G,H);
     if(H->IsInventoryOpen()) DrawInventory(H);
-    if(G->IsDead())
-    {
-        Box(360,305,560,140,Ink);
-        Label(TEXT("YOU FELL"),552,336,FLinearColor(1,.3f,.15f),1.6f);
-        Label(TEXT("Press E to restart your run"),515,390,Pale);
-    }
     if(G->IsTransitioning())
     {
         const float T=G->TransitionProgress();

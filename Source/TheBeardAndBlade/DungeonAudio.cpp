@@ -25,7 +25,7 @@ void ADungeonGameMode::PlaySound(const FString& Name,float Volume,float Pitch)
 }
 void ADungeonGameMode::UpdateAudio()
 {
-    const FString Next=bMenu?TEXT("MusicMenu"):IsBossRoom()?TEXT("MusicBoss"):TEXT("MusicDungeon");
+    const FString Next=(bMenu||HasEnding())?TEXT("MusicMenu"):IsBossRoom()?TEXT("MusicBoss"):TEXT("MusicDungeon");
     if(Next==MusicName) return;
     MusicName=Next;
     if(MusicComponent) { MusicComponent->FadeOut(.7f,0); MusicComponent=nullptr; }
@@ -91,6 +91,7 @@ void ADungeonGameMode::RunPackagedSmokeTest()
         if(Step==0&&Time>2&&Hero) { StartGame(); Room=3; SpawnWave(); ++Step; }
         if(Step==1&&Time>5)
         {
+            FinishBossIntro(); // This harness reviews dialogue; IntroVerify covers the cinematic.
             if(!IsBossDialogueActive()||!IsGameplayBlocked()) ++Errors;
             FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir()/TEXT("Screenshots/BossDialogue.png"),false,false); ++Step;
         }

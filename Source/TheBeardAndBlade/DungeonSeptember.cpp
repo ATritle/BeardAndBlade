@@ -390,6 +390,7 @@ void ADungeonGameMode::RunSeptemberSmoke()
         if(Part==0)
         {
             StartGame();Room=(Boss+1)*3;PendingSpawns=0;SpawnOneEnemy();
+            FinishBossIntro(); // Keep the existing dialogue/combat capture timing deterministic.
             H->Health=H->MaxHealth=10000;
             if(Enemies.Num()!=1||Enemies[0]->Species!=GetBossSpecies()) ++Errors;
             DialogueIndex=1;DialogueWait=0;

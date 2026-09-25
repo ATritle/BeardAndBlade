@@ -20,6 +20,7 @@ void ADungeonHero::CancelCombatActions()
     bWalking=false; bAttackHit=true; bTeaReleased=true;
     QuipTime=QuipCooldown=0; AttackQuip.Empty();
     bInventoryOpen=false;
+    InputX=InputY=0;bSprinting=false;
 }
 
 void ADungeonGameMode::BeginBossDialogue()
@@ -57,6 +58,7 @@ void ADungeonGameMode::BeginBossDialogue()
     for(const TCHAR* Line:Conversations[GetBossSpecies()-24]) DialogueLines.Add(Line);
     Shots.Empty(); Splashes.Empty(); Impacts.Empty();
     if(auto* H=Cast<ADungeonHero>(UGameplayStatics::GetPlayerPawn(this,0))) H->CancelCombatActions();
+    StartBossIntro();
 }
 FString ADungeonGameMode::GetDialogueSpeaker() const
 {
@@ -65,6 +67,7 @@ FString ADungeonGameMode::GetDialogueSpeaker() const
 void ADungeonGameMode::AdvanceBossDialogue(bool Skip)
 {
     if(bMenu||!IsBossDialogueActive()||!CanAdvanceDialogue()) return;
+    if(IsBossIntroActive()) { FinishBossIntro();if(!Skip)return; }
     DialogueIndex=Skip?DialogueLines.Num():DialogueIndex+1;
     DialogueWait=.18f;
     PlaySound(TEXT("UI"),.55f);
@@ -82,6 +85,7 @@ void ADungeonHUD::DialogueClick()
 }
 void ADungeonHUD::DrawDialogue(ADungeonGameMode* G,ADungeonHero* H)
 {
+    if(G->IsBossIntroActive())return;
     const FLinearColor Ink(.035f,.045f,.055f),Paper(.98f,.92f,.74f),Gold(.9f,.65f,.25f);
     if(H->QuipTime>0&&!G->IsGameplayBlocked()&&H->Health>0)
     {

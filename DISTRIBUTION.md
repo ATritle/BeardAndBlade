@@ -12,7 +12,7 @@ Clone the repository and open `TheBeardAndBlade.uproject` in UE 5.8. Install the
 
 Run `Tools/package_windows.ps1` to build, cook, stage and archive a Shipping Windows build. Run `python Tools/zip_release.py` to ZIP the entire staged Windows directory under the player-facing `TheBeardAndBlade` folder. Unreal's staging directory remains `Windows`; all internal game and Engine paths are preserved. Do not distribute the editor DLL, the executable in Binaries alone, or GitHub's automatic Source code ZIP as the playable download.
 
-Upload the player ZIP as a GitHub Release asset, separately from the project source. Use a prerelease for this playtest version. Keep release notes, controls and known limitations alongside it. No paid server is needed for a downloaded single-player build.
+Upload the player ZIP as a GitHub Release asset, separately from the project source. Keep release notes, controls and known limitations alongside it. No paid server is needed for a downloaded single-player build.
 
 ## Browser play
 
@@ -22,4 +22,4 @@ References: https://dev.epicgames.com/documentation/unreal-engine/packaging-your
 
 ## Current limitations
 
-Early single-player playtest. No save system or campaign ending; four themes repeat. No code-signing, installer, automatic updater or online multiplayer. Source and generated assets have not been assigned an open-source license; public hosting alone does not grant broad reuse rights. Unreal Engine components remain subject to Epic's terms.
+Early single-player playtest. No save system; the seven-chapter campaign ends after Twister in room 21. No code-signing, installer, automatic updater or online multiplayer. Source and generated assets have not been assigned an open-source license; public hosting alone does not grant broad reuse rights. Unreal Engine components remain subject to Epic's terms. See STREAMPixel_SETUP.md for the separate browser-hosting preparation checklist.

@@ -4,7 +4,7 @@ A Windows pixel-art dungeon crawler built with Unreal Engine 5.8.
 
 ## Play
 
-Download `TheBeardAndBlade-Windows-v0.3.0.zip` from [Releases](https://github.com/ATritle/TheBeardAndBlade/releases). Extract the **entire ZIP** and launch `TheBeardAndBlade/TheBeardAndBlade.exe`. Unreal Editor is not required. The automatic GitHub source ZIP is not playable.
+Download `TheBeardAndBlade-Windows-v0.3.1.zip` from [Releases](https://github.com/ATritle/TheBeardAndBlade/releases). Extract the **entire ZIP** and launch `TheBeardAndBlade/TheBeardAndBlade.exe`. Unreal Editor is not required. The automatic GitHub source ZIP is not playable.
 
 Windows x64 with a compatible DirectX graphics driver is required. Keep the supporting folders beside the EXE. If prerequisites are missing, run the bundled installer under `Engine/Extras/Redist/en-us` inside the extracted game folder. This is an unsigned playtest, not a browser, macOS or Linux build.
 
@@ -23,6 +23,8 @@ Hover over inventory items for stats. Drag to rearrange the bag or drop on the m
 - Six-by-six inventory: weapons 1×2, armor 2×2 and amulets 1×1.
 - Directional hero animations, hand-anchored equipment, individually sized weapons and a consistent starting outfit.
 - Compact health/stamina HUD, potions, music, sound effects and an illustrated title menu.
+- Seven illustrated boss entrance cinematics with skip, pause, reduced-motion (R), themed effects and synchronized audio.
+- Illustrated death/restart screen and campaign victory with a closing story after Twister in room 21. No final chest or room 22.
 
 ## Develop
 
@@ -32,4 +34,4 @@ See [PLAYTEST.md](PLAYTEST.md) for testing, [DISTRIBUTION.md](DISTRIBUTION.md) f
 
 ## Playtest limitations
 
-No saved campaign progress or ending; the seven-chapter rotation repeats after room 21. Armor changes stats without changing the hero's outfit colors. FREEDOM uses an eagle screech and graphical callout, not a recorded spoken voice. Balance and subjective animation/audio quality still need player feedback. See [current progression playtest](PROGRESSION_PLAYTEST.md) for the latest room order and editor shortcuts; older integration notes describe earlier builds.
+No saved campaign progress. The campaign ends after room 21; New Run starts fresh. Armor changes stats without changing the hero's outfit colors. FREEDOM uses an eagle screech and graphical callout, not a recorded spoken voice. Balance and subjective animation/audio quality still need player feedback. See [current progression playtest](PROGRESSION_PLAYTEST.md) for the latest room order and editor shortcuts; older integration notes describe earlier builds. Browser hosting requires a separately prepared Pixel Streaming build; this Windows release does not enable that plugin.

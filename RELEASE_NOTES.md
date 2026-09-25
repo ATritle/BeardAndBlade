@@ -1,3 +1,19 @@
+# v0.3.1 — boss entrances and campaign endings
+
+Download `TheBeardAndBlade-Windows-v0.3.1.zip`, extract the entire archive, and run `TheBeardAndBlade/TheBeardAndBlade.exe`. Windows x64; Unreal Editor is not required.
+
+- Illustrated six-second entrance cinematics for all seven bosses, with separate character/title art, themed debris, impact timing and synchronized audio.
+- Click, Space or Enter to skip an entrance; P pauses and R toggles reduced intro motion. Boss dialogue follows before combat resumes.
+- New illustrated death screen, chamber reached, a closing saying, and New Run/Exit buttons.
+- New illustrated victory screen and closing story after Twister in chamber 21. The campaign no longer loops into room 22. Earlier rooms retain their chest rewards.
+- Safe ending cleanup, one-second restart input guard, and fresh-run resets.
+
+Controls remain WASD, Shift sprint, Space dodge, LMB attack, RMB tea, MMB FREEDOM, E interact, I inventory, P pause, M music and N effects. Enter restarts from an ending. Editor-only boss shortcuts are disabled in Shipping.
+
+Unsigned Windows build; no saved campaign progress. Flash grenades use bright fading effects and blur. This download is not yet configured for StreamPixel hosting; a separate Pixel Streaming-enabled package is needed.
+
+## Earlier releases
+
 # v0.3.0 — seven-chapter dungeon campaign
 
 Download `TheBeardAndBlade-Windows-v0.3.0.zip`, extract the entire archive, and run `TheBeardAndBlade/TheBeardAndBlade.exe`. Windows x64; UE5 is not required. Keep the included folders alongside the executable. Visual C++ prerequisites are included under `Engine/Extras/Redist/en-us`.
