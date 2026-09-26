@@ -1,8 +1,23 @@
 {
-  "FileVersion": 3,
-  "EngineAssociation": "5.8",
-  "Category": "Games",
-  "Description": "A playable top-down dungeon prototype.",
-  "Modules": [{ "Name": "TheBeardAndBlade", "Type": "Runtime", "LoadingPhase": "Default" }],
-  "Plugins": [{ "Name": "AndroidFileServer", "Enabled": false }]
+	"FileVersion": 3,
+	"EngineAssociation": "5.8",
+	"Category": "Games",
+	"Description": "A playable top-down dungeon prototype.",
+	"Modules": [
+		{
+			"Name": "TheBeardAndBlade",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "AndroidFileServer",
+			"Enabled": false
+		},
+		{
+			"Name": "PixelStreaming",
+			"Enabled": true
+		}
+	]
 }

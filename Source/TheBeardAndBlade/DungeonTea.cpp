@@ -99,6 +99,27 @@ void ADungeonGameMode::UpdateProjectiles(float Dt)
     const auto HeroP=DungeonView::Project(H->GetActorLocation());
     for(auto& S:Shots)
     {
+        const bool LinearEnemy=!S.bFriendly&&S.Style!=13&&S.Style!=14&&!S.Velocity.IsNearlyZero();
+        if(LinearEnemy&&!S.bMotionTuned)
+        {
+            S.bMotionTuned=true;
+            const float OldSpeed=S.Velocity.Size(),NewSpeed=FMath::Min(650.f,OldSpeed*.8f);
+            S.Velocity*=NewSpeed/OldSpeed;
+            S.Life*=OldSpeed/NewSpeed; // Retain range, not the old time-to-impact.
+        }
+        if(LinearEnemy&&!S.bTrackingStopped)
+        {
+            const FVector2D ToHero=HeroP-FVector2D(0,S.Style==12?65:S.HitHeight)-S.Position;
+            // Once dodged, passed, or out of the steering window, never reacquire.
+            if(H->IsRolling()||S.Age>=.55f||FVector2D::DotProduct(ToHero,S.Velocity)<=0) S.bTrackingStopped=true;
+            else if(S.Style!=6&&S.Style!=12) // Radial barrages and flame cones keep their readable pattern.
+            {
+                const float Heading=FMath::Atan2(S.Velocity.Y,S.Velocity.X);
+                const float Desired=FMath::Atan2(ToHero.Y,ToHero.X);
+                const float Turn=FMath::Clamp(FMath::FindDeltaAngleRadians(Heading,Desired),-.8f*FMath::Min(Dt,.55f-S.Age),.8f*FMath::Min(Dt,.55f-S.Age));
+                S.Velocity=FVector2D(FMath::Cos(Heading+Turn),FMath::Sin(Heading+Turn))*S.Velocity.Size();
+            }
+        }
         const float Step=FMath::Min(Dt,FMath::Max(0.f,S.Life));
         const auto Before=S.Position; S.Age+=Dt; S.Life-=Dt;
         if(S.bFriendly||S.Style==13||S.Style==14) S.Position=FMath::Lerp(S.Origin,S.Target,FMath::Clamp(S.Age/S.FlightTime,0.f,1.f));

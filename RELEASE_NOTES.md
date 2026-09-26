@@ -1,3 +1,17 @@
+# v0.3.2 — adventurer, combat and presentation update
+
+- New athletic adventurer animation set, matching resting/movement proportions, breathing, right-hand weapon attachments and updated attack poses.
+- Slower four-second stairway transitions with gentle shrinking and fading before the arch.
+- Improved melee reach without increasing enemy contact-damage range; stronger regular enemies, lower sprint/dodge costs and limited projectile tracking that stops after a dodge.
+- FREEDOM removes 75% of current health from regular enemies, executes only enemies already below 25% maximum health, and displays boss immunity.
+- Sharper enemy/boss and tea-splash graphics, ornate menu hover states, sword cursor and clearer controls panel.
+- Forgotten Keep main-menu music, music/SFX toggles and volume slider, including music resume fixes.
+- Windows Shipping download and separate StreamPixel upload layout, both with Pixel Streaming enabled. No hosting credentials or signalling URL are embedded.
+
+Download `TheBeardAndBlade-Windows-v0.3.2.zip`, extract everything and run `TheBeardAndBlade/TheBeardAndBlade.exe`. Upload `TheBeardAndBlade-StreamPixel-v0.3.2.zip` to StreamPixel; select `Windows/TheBeardAndBlade.exe` if prompted. UE5 is not needed to play the Windows download. Browser validation is required after hosting upload. SHA-256 files accompany both archives.
+
+Unsigned Windows x64 playtest; keyboard/mouse controls. Existing bright flash effects remain. No saved campaign progress. Previous releases remain available.
+
 # v0.3.1 — boss entrances and campaign endings
 
 Download `TheBeardAndBlade-Windows-v0.3.1.zip`, extract the entire archive, and run `TheBeardAndBlade/TheBeardAndBlade.exe`. Windows x64; Unreal Editor is not required.

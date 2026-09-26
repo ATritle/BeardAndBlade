@@ -323,7 +323,7 @@ void ADungeonGameMode::VerifySeptember()
     FDungeonShot Fast;Fast.Style=11;Fast.Radius=6;Fast.Damage=20;Fast.Life=1;
     const auto HP=DungeonView::Project(H->GetActorLocation());
     Fast.Position=Fast.Origin=HP-FVector2D(220,0);Fast.Velocity=FVector2D(2200,0);
-    Shots.Add(Fast);Shots.Add(Fast);UpdateProjectiles(.2f);
+    Shots.Add(Fast);Shots.Add(Fast);UpdateProjectiles(.4f);
     Check(Shots.IsEmpty()&&H->Health<116,TEXT("Swept fast projectiles each hit once at low frame rate"));
     const float AfterBullets=H->Health;UpdateProjectiles(.2f);
     Check(H->Health==AfterBullets,TEXT("Resolved bullets cannot damage twice"));H->Restart();
@@ -354,7 +354,7 @@ void ADungeonGameMode::VerifySeptember()
     H->SetActorLocation(DungeonView::Unproject(ChestPosition(1)));PlayerInteract(H);Tick(2);
     Check(Enemies.IsEmpty()&&PendingSpawns==0,TEXT("Opening chest never spawns Finance Guy"));
     PlayerInteract(H);Check(bLootClaimed,TEXT("Collect reward without leaving original chest position"));
-    Tick(1);H->SetActorLocation(DungeonView::Unproject(DoorPosition(1)));PlayerInteract(H);Tick(2.1f);
+    Tick(1);H->SetActorLocation(DungeonView::Unproject(DoorPosition(1)));PlayerInteract(H);Tick(DungeonDescent::Duration+.1f);
     Check(Room==3&&!bChest&&Reward.Phase==ERewardPhase::Closed&&Enemies.IsEmpty(),TEXT("Boss room clears all previous reward visuals"));
     Tick(2.1f);Check(Enemies.Num()==1&&Enemies[0]->Species==24&&!bChest,TEXT("Finance spawns once only after gate transition"));
     ClearTimedRoom();Check(bChest,TEXT("Finance reward follows boss death"));
@@ -365,7 +365,7 @@ void ADungeonGameMode::VerifySeptember()
     Check(Reward.BagFull&&!AreDoorsOpen(),TEXT("Ice full bag visibly explains locked portals"));
     H->Inventory.RemoveAt(0);PlayerInteract(H);
     Check(AreDoorsOpen()&&H->Inventory.Num()==36,TEXT("Ice pickup unlocks after making one valid slot"));
-    Tick(1);H->SetActorLocation(DungeonView::Unproject(DoorPosition(0)));PlayerInteract(H);Tick(2.1f);
+    Tick(1);H->SetActorLocation(DungeonView::Unproject(DoorPosition(0)));PlayerInteract(H);Tick(DungeonDescent::Duration+.1f);
     Check(Room==14&&!IsTransitioning(),TEXT("First ice dungeon gate advances normally"));
     for(int I=0;I<7;++I)
     {

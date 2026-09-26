@@ -47,6 +47,10 @@ def score(name,bpm,roots,melody,dark=False):
     # Circular short echoes retain the exact musical loop boundary.
     a+=.18*np.roll(a,int(.375*beat*SR),axis=0)+.09*np.roll(a,int(.75*beat*SR),axis=0)
     save(name,a,True)
+import sys
+if '--ending-only' in sys.argv:
+    score('MusicEnding',76,[38,34,41,36],[62,69,65,64,62,60,57,60],False)
+    sys.exit(0)
 score('MusicMenu',76,[38,34,41,36],[62,69,65,64,62,60,57,60],False)
 score('MusicDungeon',68,[38,38,34,36],[50,57,53,52,50,48,45,48],True)
 score('MusicBoss',104,[38,39,34,36],[62,63,69,65,62,60,58,57],True)

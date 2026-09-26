@@ -4,6 +4,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "GameFramework/HUD.h"
 #include "DungeonProgression.h"
+#include "DungeonDescent.h"
 #include "DungeonActors.generated.h"
 
 class UCameraComponent;
@@ -65,6 +66,7 @@ struct FDungeonShot
     FVector2D Origin,Target;
     float Age=0,FlightTime=1,BlastRadius=0;
     bool bFriendly=false;
+    bool bMotionTuned=false,bTrackingStopped=false;
 };
 struct FDungeonSplash
 {
@@ -121,7 +123,7 @@ public:
     float RollProgress() const { return 1.f-RollTime/.48f; }
     float GetRollCooldown() const { return RollCooldown; }
     int32 GetRollDirection() const { return RollDirection; }
-    void TransitionWalk(FVector2D From,FVector2D To,float Progress);
+    void TransitionWalk(FVector2D From,FVector2D To,float Progress,float GaitScale=1.f);
     void Interact();
     void Restart();
     void ReceiveHit(float Damage,bool PerProjectile=false);
@@ -134,7 +136,8 @@ public:
     int32 StrikeCount=0;
 #if !UE_BUILD_SHIPPING
     void SetReviewPose(int32 D,int32 F) { Facing=AttackDirection=D; AttackTime=.48f*(1.f-(F+.01f)/6.f); bAttackHit=true; }
-    void SetIdleReviewPose(int32 D,float Phase) { Facing=D;AttackTime=PowerCastTime=RollTime=0;bWalking=false;IdleBreathBlend=1;BreathPhase=Phase; }
+    void SetWalkReviewPose(int32 D,int32 F) { Facing=D;AttackTime=PowerCastTime=RollTime=0;bWalking=true;WalkDistance=(F+.01f)*24;IdleBreathBlend=0; }
+    void SetIdleReviewPose(int32 D,float Phase) { Facing=D;AttackTime=PowerCastTime=RollTime=HurtTime=0;bWalking=false;IdleBreathBlend=1;BreathPhase=Phase; }
     void SetFlashReviewAim(FVector2D Direction) { Aim=Direction;Facing=DungeonView::Direction(Aim); }
 #endif
     void ToggleInventory();
@@ -205,7 +208,7 @@ public:
     float AttackWindup=1,AttackRadius=90;
     float ChargeTime=0;
     FVector2D ChargeAim=FVector2D::ZeroVector;
-    float Health=50,MaxHealth=50,HurtTime=0,SpawnTime=.6f,Windup=0,Recovery=0;
+    float Health=50,MaxHealth=50,HurtTime=0,SpawnTime=.6f,Windup=0,Recovery=0,FreedomImmuneTime=0;
     float WalkDistance=0;
     int32 Facing=2;
     int32 AnimationFrame() const;
@@ -236,6 +239,8 @@ public:
     void ToggleMusic();
     void ToggleEffects();
     bool IsMusicMuted() const { return bMusicMuted; }
+    float GetMasterVolume() const { return MasterVolume; }
+    void SetMasterVolume(float Value,bool Save=true);
     bool AreEffectsMuted() const { return bEffectsMuted; }
     void PlayerInteract(ADungeonHero* Hero);
     void EnemyDefeated(ADungeonEnemy* Enemy);
@@ -251,6 +256,7 @@ public:
     void UpdateEnding(float Dt);
     void RestartFromEnding();
     void VerifyEndings();
+    void VerifyWeekend();
     void RunEndingPreview();
     bool HasEnding() const { return EndState!=0; }
     bool IsVictory() const { return EndState==2; }
@@ -289,7 +295,7 @@ public:
     int32 GetDialogueIndex() const { return DialogueIndex; }
     int32 GetDialogueCount() const { return DialogueLines.Num(); }
     bool CanAdvanceDialogue() const { return DialogueWait<=0; }
-    float TransitionProgress() const { return 1.f-TransitionTime/2.f; }
+    float TransitionProgress() const { return 1.f-TransitionTime/DungeonDescent::Duration; }
     int32 GetBiome() const { return DungeonProgression::Themes[DungeonProgression::Chapter(Room)]; }
     int32 GetBossSpecies() const { return DungeonProgression::Bosses[DungeonProgression::Chapter(Room)]; }
     void FireThemeAttack(ADungeonEnemy* Enemy);
@@ -341,6 +347,7 @@ private:
     TMap<FString,double> LastSoundTime;
     FString MusicName;
     bool bMusicMuted=false,bEffectsMuted=false;
+    float MasterVolume=1.f;
     int32 Room=1,Wave=1,PendingSpawns=0;
     int32 RosterCursor=0;
     float SpawnTimer=0,LootTimer=0,TransitionCooldown=0;
@@ -396,6 +403,10 @@ private:
     double LastClickTime=-1;
     FVector2D DragStart,DragGrab,DragMouse,LastClickPosition;
     void DrawMenu(ADungeonGameMode* G);
+    bool bVolumeDragging=false;
+    TMap<FString,float> MenuHoverAmounts;
+    FString HoveredMenuButton;
+    void DrawSwordCursor();
     void DrawEnding(ADungeonGameMode* G);
     UTexture2D* Texture(const FString& Name);
     void Sprite(const FString& Name,float X,float Y,float W,float H,FLinearColor Tint=FLinearColor::White,float Rotation=0,FVector2D Pivot=FVector2D(.5,.5));
@@ -403,7 +414,7 @@ private:
     void Box(float X,float Y,float W,float H,FLinearColor Color);
     void Label(const FString& Text,float X,float Y,FLinearColor Color,float Size=1);
     void Ring(FVector2D Center,float Radius,FLinearColor Color,float Width=2);
-    void Shadow(FVector2D Center,float Radius);
+    void Shadow(FVector2D Center,float Radius,float Opacity=1.f);
     void Hero(ADungeonHero* H,float HS=1.375f);
     void Enemy(ADungeonEnemy* E);
     float Scale=1;

@@ -1,6 +1,9 @@
 #include "DungeonActors.h"
+#include "DungeonCombatBalance.h"
 #include "HeroSockets.h"
+#include "AthleticHeroSockets.h"
 #include "HeroBreathing.h"
+#include "DungeonDescent.h"
 #include "DungeonRoster.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Camera/CameraComponent.h"
@@ -19,6 +22,7 @@
 #include "UnrealClient.h"
 #include "Misc/Paths.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/ScopeExit.h"
 #if WITH_EDITOR
 #include "TextureCompiler.h"
 #endif
@@ -62,6 +66,8 @@ void ADungeonHero::BeginPlay()
     if(auto* PC=Cast<APlayerController>(GetController()))
     {
         PC->bShowMouseCursor=true;
+        PC->DefaultMouseCursor=EMouseCursor::None;
+        PC->CurrentMouseCursor=EMouseCursor::None;
         FInputModeGameAndUI Input;
         Input.SetHideCursorDuringCapture(false);
         Input.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
@@ -123,7 +129,7 @@ void ADungeonHero::Tick(float Dt)
     const bool Sprinting=bSprinting&&!bExhausted&&Stamina>0&&!Move.IsNearlyZero()&&
         !DungeonView::Clamp(P+Move).Equals(P,.001f);
     // Split the final sprint frame so speed never exceeds the stamina available.
-    const float SprintSeconds=Sprinting?FMath::Min(Dt,Stamina/25.f):0;
+    const float SprintSeconds=Sprinting?FMath::Min(Dt,Stamina/DungeonCombatBalance::SprintCost):0;
     const FVector2D Next=DungeonView::Clamp(P+Move*(190.f*Dt+190.f*SprintSeconds)*(IsAttacking()?.5f:1.f)*(SlowTime>0?.6f:1.f));
     UpdateStamina(Dt,Sprinting);
     bWalking=FVector2D::Distance(Next,P)>.01f;
@@ -304,8 +310,8 @@ void ADungeonHero::Dodge()
     if(auto* Intro=Mode(this))if(Intro->IsBossIntroActive()){SkipIntro();return;}
     if(StunTime>0) return;
     auto* G=Mode(this);
-    if(!G||G->IsGameplayBlocked()||bInventoryOpen||Health<=0||RollCooldown>0||IsCasting()||bExhausted||Stamina<30) return;
-    SpendStamina(30);
+    if(!G||G->IsGameplayBlocked()||bInventoryOpen||Health<=0||RollCooldown>0||IsCasting()||bExhausted||Stamina<DungeonCombatBalance::DodgeCost) return;
+    SpendStamina(DungeonCombatBalance::DodgeCost);
     RollAim=FVector2D(InputX,InputY).GetSafeNormal(); if(RollAim.IsNearlyZero()) RollAim=Aim;
     RollDirection=(FMath::RoundToInt(FMath::Atan2(RollAim.Y,RollAim.X)/(PI/2))+4)%4;
     RollTime=.48f; RollCooldown=1.15f; Invulnerable=.34f; AttackTime=0; bAttackHit=true;
@@ -313,11 +319,12 @@ void ADungeonHero::Dodge()
 }
 void ADungeonHero::Menu() { if(auto* G=Mode(this)) G->ToggleMenu(); }
 void ADungeonHero::Confirm() { if(auto* G=Mode(this)) {if(G->HasEnding()){G->RestartFromEnding();return;}if(G->IsBossIntroActive()&&!G->IsMenu()){SkipIntro();return;}if(G->IsMenu()) { if(G->HasRun()) G->ToggleMenu(); else G->StartGame(); }} }
-void ADungeonHero::TransitionWalk(FVector2D From,FVector2D To,float Progress)
+void ADungeonHero::TransitionWalk(FVector2D From,FVector2D To,float Progress,float GaitScale)
 {
     SetActorLocation(DungeonView::Unproject(FMath::Lerp(From,To,Progress)));
     Facing=DungeonView::Direction(To-From); Aim=(To-From).GetSafeNormal(); bWalking=true;
-    WalkDistance=Progress*FVector2D::Distance(From,To); AttackTime=RollTime=0;
+    // Compressed screen-space stair travel still advances a slow, readable gait.
+    WalkDistance=Progress*FVector2D::Distance(From,To)*GaitScale; AttackTime=RollTime=PowerCastTime=HurtTime=0; IdleBreathBlend=0;
 }
 void ADungeonHero::Equip(const FDungeonItem& Item)
 {
@@ -357,12 +364,15 @@ void ADungeonGameMode::BeginPlay()
 {
     Super::BeginPlay();
     GConfig->GetBool(TEXT("DungeonAudio"),TEXT("MuteMusic"),bMusicMuted,GGameUserSettingsIni);
+    GConfig->GetFloat(TEXT("DungeonAudio"),TEXT("Volume"),MasterVolume,GGameUserSettingsIni);
+    MasterVolume=FMath::Clamp(MasterVolume,0.f,1.f);
     GConfig->GetBool(TEXT("DungeonAudio"),TEXT("MuteEffects"),bEffectsMuted,GGameUserSettingsIni);
 #if !UE_BUILD_SHIPPING
     if(FParse::Param(FCommandLine::Get(),TEXT("SeptemberVerify"))) { VerifySeptember(); return; }
     if(FParse::Param(FCommandLine::Get(),TEXT("FlashVerify"))) { VerifyFlashBang(); return; }
     if(FParse::Param(FCommandLine::Get(),TEXT("ProgressionVerify"))) { VerifyProgression(); return; }
     if(FParse::Param(FCommandLine::Get(),TEXT("IntroVerify"))) { VerifyBossIntro(); return; }
+    if(FParse::Param(FCommandLine::Get(),TEXT("WeekendVerify"))) { VerifyWeekend(); return; }
     if(FParse::Param(FCommandLine::Get(),TEXT("EndingVerify"))) { VerifyEndings(); return; }
     if(FParse::Param(FCommandLine::Get(),TEXT("DungeonVerify"))) VerifyCampaign();
     if(FParse::Param(FCommandLine::Get(),TEXT("DungeonCapture"))&&!FParse::Param(FCommandLine::Get(),TEXT("DungeonMenuPreview"))) { bMenu=false; bHasRun=true; SpawnWave(); }
@@ -391,6 +401,37 @@ void ADungeonGameMode::Tick(float Dt)
         if(!Prepared&&Time>2.f)
         {
             Prepared=true;
+            if(FParse::Param(FCommandLine::Get(),TEXT("DungeonControlsPreview"))) bShowControls=true;
+            if(FParse::Param(FCommandLine::Get(),TEXT("DungeonMenuHoverPreview")))
+                if(auto* PC=GetWorld()->GetFirstPlayerController())
+                {
+                    int W=0,H=0;PC->GetViewportSize(W,H);const float S=FMath::Min(W/1280.f,H/800.f);
+                    PC->SetMouseLocation((W-1280*S)/2+425*S,(H-800*S)/2+420*S);
+                }
+            if(FParse::Param(FCommandLine::Get(),TEXT("DungeonBossClarityPreview")))
+            {
+                StartGame();PendingSpawns=0;CancelBossIntro();DialogueLines.Empty();BossGrace=0;
+                for(auto& E:Enemies)if(IsValid(E))E->Destroy();Enemies.Empty();
+                for(int I=0;I<3;++I)
+                {
+                    auto* E=GetWorld()->SpawnActor<ADungeonEnemy>();E->Species=25+I;E->bBoss=true;E->SpawnTime=0;
+                    E->Health=E->MaxHealth=100;E->SetActorLocation(DungeonView::Unproject(FVector2D(260+I*380,520)));
+                    E->SetActorTickEnabled(false);Enemies.Add(E);
+                }
+                if(auto* H=Player(this))H->SetActorLocation(DungeonView::Unproject(FVector2D(640,700)));
+            }
+            if(FParse::Param(FCommandLine::Get(),TEXT("DungeonWeekendPreview")))
+            {
+                StartGame();PendingSpawns=0;CancelBossIntro();DialogueLines.Empty();BossGrace=0;
+                for(auto& E:Enemies)if(IsValid(E))E->Destroy();Enemies.Empty();
+                for(int I=0;I<4;++I)
+                {
+                    auto* E=GetWorld()->SpawnActor<ADungeonEnemy>();E->Species=I==0?24:I==1?0:I==2?6:12;E->bBoss=I==0;
+                    E->SpawnTime=0;E->Health=E->MaxHealth=100;E->SetActorLocation(DungeonView::Unproject(FVector2D(300+I*230,490)));
+                    E->SetActorTickEnabled(false);Enemies.Add(E);
+                }
+                if(auto* H=Player(this))H->SetActorLocation(DungeonView::Unproject(FVector2D(640,680)));
+            }
             if(FParse::Param(FCommandLine::Get(),TEXT("DungeonThemeRosterPreview")))
             {
                 PendingSpawns=0;for(auto& E:Enemies)if(IsValid(E))E->Destroy();Enemies.Empty();Shots.Empty();
@@ -456,15 +497,29 @@ void ADungeonGameMode::Tick(float Dt)
             }
             if(auto* H=Player(this)) { H->SetActorLocation(DungeonView::Unproject(FVector2D(640,610))); LaunchTea(H,FVector2D(640,425)); }
         }
+        if(FParse::Param(FCommandLine::Get(),TEXT("DungeonDescentPreview"))&&Time>4.f)
+        {
+            for(auto& E:Enemies) if(IsValid(E)) E->Destroy();
+            Enemies.Empty();PendingSpawns=0;bChest=false;bLootClaimed=true;
+            TransitionDoor=1;TransitionFrom=DoorPosition(1)+FVector2D(0,75);TransitionTime=DungeonDescent::Duration*.4f;
+        }
         if(!Captured&&Time>4.5f)
         {
             Captured=true;
             FString Name=FParse::Param(FCommandLine::Get(),TEXT("DungeonRewardPreview"))?TEXT("RewardReview"):Room==2?TEXT("BossReview"):TEXT("ArenaReview");
             if(FParse::Param(FCommandLine::Get(),TEXT("DungeonInventoryPreview"))) Name=TEXT("InventoryReview");
             if(FParse::Param(FCommandLine::Get(),TEXT("DungeonMenuPreview"))) Name=TEXT("MenuReview");
+            if(FParse::Param(FCommandLine::Get(),TEXT("DungeonControlsPreview"))) Name=TEXT("ControlsReview");
+            if(FParse::Param(FCommandLine::Get(),TEXT("DungeonHeroReviewPreview")))
+            { int Group=0;FParse::Value(FCommandLine::Get(),TEXT("DungeonBiome="),Group);Name=FString::Printf(TEXT("AthleticHeroReview%d"),Group); }
+            if(FParse::Param(FCommandLine::Get(),TEXT("DungeonMenuHoverPreview"))) Name=TEXT("MenuHoverReview");
+            if(FParse::Param(FCommandLine::Get(),TEXT("DungeonWeekendPreview"))) Name=TEXT("WeekendReview");
+            if(FParse::Param(FCommandLine::Get(),TEXT("DungeonBossClarityPreview"))) Name=TEXT("BossClarityReview");
             if(FParse::Param(FCommandLine::Get(),TEXT("DungeonRosterPreview"))) Name=TEXT("RosterReview");
             if(FParse::Param(FCommandLine::Get(),TEXT("DungeonThemeRosterPreview"))) Name=FString::Printf(TEXT("ThemeRosterReview%d"),GetBiome());
             if(FParse::Param(FCommandLine::Get(),TEXT("DungeonRollPreview"))) Name=TEXT("RollReview");
+            if(FParse::Param(FCommandLine::Get(),TEXT("DungeonIdlePreview"))) Name=TEXT("IdleReview");
+            if(FParse::Param(FCommandLine::Get(),TEXT("DungeonDescentPreview"))) Name=TEXT("DescentReview");
             if(FParse::Param(FCommandLine::Get(),TEXT("DungeonFXPreview"))) Name=TEXT("FXReview");
             if(FParse::Param(FCommandLine::Get(),TEXT("DungeonTeaPreview"))) Name=TEXT("TeaReview");
             if(FParse::Param(FCommandLine::Get(),TEXT("DungeonChestPreview"))) Name=TEXT("ChestReview");
@@ -488,7 +543,12 @@ void ADungeonGameMode::Tick(float Dt)
     if(TransitionTime>0)
     {
         TransitionTime=FMath::Max(0.f,TransitionTime-Dt);
-        if(auto* H=Player(this)) H->TransitionWalk(TransitionFrom,DoorPosition(TransitionDoor)-FVector2D(0,95),FMath::Min(1.f,TransitionProgress()*1.45f));
+        if(auto* H=Player(this))
+        {
+            const float T=TransitionProgress(); const auto Door=DoorPosition(TransitionDoor);
+            if(T<.25f) H->TransitionWalk(TransitionFrom,Door,T/.25f);
+            else H->TransitionWalk(Door,Door-FVector2D(0,DungeonDescent::StairDistance),FMath::Clamp((T-.25f)/.6f,0.f,1.f),DungeonDescent::StairGaitScale);
+        }
         if(TransitionTime<=0) NextRoom();
         return;
     }
@@ -548,7 +608,7 @@ void ADungeonGameMode::SpawnOneEnemy()
         E->bBoss=IsBossRoom(); E->Species=E->bBoss?GetBossSpecies():DungeonProgression::RosterBase(GetBiome())+(RosterCursor++%6);
         if(E->bBoss&&E->Species>=28) E->Facing=4;
         const auto& S=DungeonRoster::Get(E->Species);
-        E->MaxHealth=E->Health=S.HP*1.15f*(1.f+(Room-1)*.035f);
+        E->MaxHealth=E->Health=DungeonCombatBalance::SpawnHealth(S.HP,Room,E->bBoss);
         Enemies.Add(E);
         if(E->bBoss) { E->SpawnTime=0; BeginBossDialogue(); }
         PlaySound(TEXT("Spawn"),.4f,E->bBoss?.65f:1.f);
@@ -562,8 +622,7 @@ void ADungeonGameMode::PlayerAttack(ADungeonHero* H)
     for(auto& E:Enemies) if(IsValid(E)&&E->SpawnTime<=0)
     {
         FVector2D V=DungeonView::Project(E->GetActorLocation())-P;
-        const float Reach=70.f+DungeonRoster::RenderSize(E->Species)*.23f;
-        if(V.Size()<Reach&&(V.Size()<32||FVector2D::DotProduct(H->GetAim(),V.GetSafeNormal())>-.15f)) Hits.Add(E);
+        if(DungeonCombatBalance::MeleeHits(V,H->GetAim(),DungeonRoster::RenderSize(E->Species),E->bBoss)) Hits.Add(E);
     }
     ++H->StrikeCount;
     for(auto& E:Hits) if(IsValid(E)&&E->Health>0)
@@ -720,70 +779,60 @@ void ADungeonHUD::Ring(FVector2D C,float R,FLinearColor Color,float Width)
         DrawLine(Offset.X+P.X*Scale,Offset.Y+P.Y*Scale,Offset.X+Q.X*Scale,Offset.Y+Q.Y*Scale,Color,Width*Scale);
     }
 }
-void ADungeonHUD::Shadow(FVector2D Center,float Radius)
+void ADungeonHUD::Shadow(FVector2D Center,float Radius,float Opacity)
 {
     for(int32 Y=-6;Y<=6;++Y)
     {
         const float Half=Radius*FMath::Sqrt(FMath::Max(0.f,1.f-Y*Y/49.f));
-        Box(Center.X-Half,Center.Y+Y*1.5f,Half*2,1.5f,FLinearColor(0,0,0,.28f));
+        Box(Center.X-Half,Center.Y+Y*1.5f,Half*2,1.5f,FLinearColor(0,0,0,.28f*Opacity));
     }
 }
 void ADungeonHUD::Hero(ADungeonHero* H,float HS)
 {
+    float Opacity=1.f,DescentScale=1.f;
+    if(auto* G=Cast<ADungeonGameMode>(UGameplayStatics::GetGameMode(this));G&&G->IsTransitioning())
+    {
+        DescentScale=DungeonDescent::Size(G->TransitionProgress());
+        Opacity=DungeonDescent::Opacity(G->TransitionProgress()); HS*=DescentScale;
+    }
+    if(Opacity<=0.f) return;
+    const FLinearColor Fade(1,1,1,Opacity);
     FVector2D P=DungeonView::Project(H->GetActorLocation());
     if(H->IsRolling())
     {
         Shadow(P,27);
         FString RollName=FString::Printf(TEXT("Roll_%d_%d"),H->GetRollDirection(),FMath::Clamp((int)(H->RollProgress()*8),0,7));
-        KeySprite(TEXT("Tea_")+RollName,P.X-64*HS,P.Y-116*HS,128*HS,128*HS,FLinearColor::White);
+        Sprite(TEXT("Athletic_")+RollName,P.X-64*HS,P.Y-116*HS,128*HS,128*HS,FLinearColor::White);
         return;
     }
-    const int32 D=H->GetFacingDirection(),F=H->GetAnimationFrame();
-    const float BreathWeight=H->Health>0&&!H->IsAttacking()&&!H->IsCasting()&&!H->IsRolling()?H->IdleBreathBlend:0;
+    const int32 D=H->GetFacingDirection();
+    const bool Action=H->IsAttacking()||H->IsCasting();
+    const int32 View=Action?AthleticHeroSockets::AttackView(D,H->GetAnimationFrame()):D;
+    const int32 F=Action?AthleticHeroSockets::AttackPose[D][H->GetAnimationFrame()]:H->IsWalking()?H->GetAnimationFrame():AthleticHeroSockets::IdleFrame[D];
+    const float BreathWeight=H->Health>0&&!H->IsAttacking()&&!H->IsCasting()&&!H->IsRolling()?FMath::Max(H->IdleBreathBlend,H->IsWalking()?.18f:0.f):0;
     const float FacingX=D==0||D==4?0:D<4?1.f:-1.f;
     auto Pose=[&](FVector2D Q){return HeroBreathing::Map(Q,H->BreathPhase,BreathWeight,FacingX);};
     const float Bob=H->IsWalking()?FMath::Sin(H->WalkCycle()*2.f)*.6f:0.f;
     P.Y+=Bob;
-    FString Name=FString::Printf(TEXT("%s%s_%d_%d"),H->IsAttacking()||H->IsCasting()?TEXT("Attack"):TEXT("Walk"),D%2?TEXT("Diagonal"):TEXT("Cardinal"),D/2,F);
-    Shadow(P+FVector2D(0,-2-Bob),28);
-    FString ArmorName=TEXT("Tea_Base_")+Name;
-    UMaterialInstanceDynamic* Worn=nullptr;
-    if(!ArmorName.IsEmpty())
-    {
-        if(auto* Cached=ArmorMaterials.Find(ArmorName)) Worn=*Cached;
-        else if(auto* Base=LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/Art/V2/M_WornArmor.M_WornArmor")))
-        {
-            Worn=UMaterialInstanceDynamic::Create(Base,this);
-            Worn->SetTextureParameterValue(TEXT("ArmorTexture"),Texture(ArmorName));
-            Worn->SetTextureParameterValue(TEXT("HeroMask"),Texture(Name));
-            ArmorMaterials.Add(ArmorName,Worn);
-        }
-    }
-    if(Worn&&!Worn->GetMaterial()->IsCompiling())
-    {
-        Worn->SetVectorParameterValue(TEXT("Tint"),H->HurtTime>0?FLinearColor(1,.35f,.3f):FLinearColor::White);
-        // Adjacent mapped strip edges prevent gaps as shoulders rise; the feet never bob.
-        for(int Row=0;Row<128;Row+=2)
-        {
-            const auto L=Pose(FVector2D(0,Row+1)),R=Pose(FVector2D(128,Row+1));
-            const auto Top=Pose(FVector2D(64,Row)),Bottom=Pose(FVector2D(64,Row+2));
-            DrawMaterial(Worn,Offset.X+(P.X+(L.X-64)*HS)*Scale,Offset.Y+(P.Y+(Top.Y-116)*HS)*Scale,
-                (R.X-L.X)*HS*Scale,(Bottom.Y-Top.Y)*HS*Scale,0,Row/128.f,1,2.f/128);
-        }
-    }
-    else if(auto* T=Texture(Name)) for(int Row=0;Row<128;Row+=2)
+    FString Name=FString::Printf(TEXT("Athletic_%s%s_%d_%d"),Action?TEXT("Attack"):TEXT("Walk"),View%2?TEXT("Diagonal"):TEXT("Cardinal"),View/2,F);
+    Shadow(P+FVector2D(0,-2-Bob),28*DescentScale,Opacity);
+    // Native alpha avoids the old body mask and its mismatched silhouette.
+    auto DrawBody=[&]() { if(auto* T=Texture(Name)) for(int Row=0;Row<128;Row+=2)
     {
         const auto L=Pose(FVector2D(0,Row+1)),R=Pose(FVector2D(128,Row+1));
         const auto Top=Pose(FVector2D(64,Row)),Bottom=Pose(FVector2D(64,Row+2));
         DrawTexture(T,Offset.X+(P.X+(L.X-64)*HS)*Scale,Offset.Y+(P.Y+(Top.Y-116)*HS)*Scale,
-            (R.X-L.X)*HS*Scale,(Bottom.Y-Top.Y)*HS*Scale,0,Row/128.f,1,2.f/128,H->HurtTime>0?FLinearColor(1,.35f,.3f):FLinearColor::White,BLEND_Translucent);
+            (R.X-L.X)*HS*Scale,(Bottom.Y-Top.Y)*HS*Scale,0,Row/128.f,1,2.f/128,H->HurtTime>0?FLinearColor(1,.35f,.3f,Opacity):Fade,BLEND_Translucent);
     }
+    };
+    const bool Behind=AthleticHeroSockets::RightHandBehindBody(View);
+    if(!Behind||H->IsCasting()||H->Equipment.Num()!=3) DrawBody();
     if(H->Equipment.Num()!=3) return;
     if(H->IsCasting())
     {
         if(H->GetCastProgress()<.46f)
         {
-            const auto Hand=P+(Pose(HeroSockets::Attack[D][F])-FVector2D(64,116))*HS;
+            const auto Hand=P+(Pose(AthleticHeroSockets::Attack[View][F])-FVector2D(64,116))*HS;
             KeySprite(TEXT("TeaFX_0"),Hand.X-17,Hand.Y-22,34,34,FLinearColor::White);
         }
         return;
@@ -792,13 +841,13 @@ void ADungeonHUD::Hero(ADungeonHero* H,float HS)
     if(H->Equipment[2].Vitality>0&&Front)
     {
         const auto Charm=P+(Pose(FVector2D(64,65))-FVector2D(64,116))*HS;
-        Sprite(ItemArt(H->Equipment[2].Icon),Charm.X-7*HS,Charm.Y-7*HS,14*HS,14*HS);
+        Sprite(ItemArt(H->Equipment[2].Icon),Charm.X-7*HS,Charm.Y-7*HS,14*HS,14*HS,Fade);
     }
     const auto A=H->GetAim();
-    const FVector2D Socket=H->IsAttacking()?HeroSockets::Attack[D][F]:HeroSockets::Walk[D][F];
+    const FVector2D Socket=H->IsAttacking()?AthleticHeroSockets::Attack[View][F]:AthleticHeroSockets::Walk[D][F];
     const FVector2D Origin=P-FVector2D(64,116)*HS;
     const FVector2D Hand=Origin+Pose(Socket)*HS;
-    const float Angle=H->IsAttacking()?HeroSockets::Angles[D][F]:(D<=4?145.f:215.f);
+    const float Angle=H->IsAttacking()?AthleticHeroSockets::Angles[View][F]:(D<=4?145.f:215.f);
     if(!H->Equipment[0].IsEmpty())
     {
         const FVector2D Pivot=H->Equipment[0].CatalogId<0?HeroSockets::Grip(H->Equipment[0].Icon)/128.:HeroSockets::CatalogGrip(H->Equipment[0].CatalogId);
@@ -807,15 +856,19 @@ void ADungeonHUD::Hero(ADungeonHero* H,float HS)
         if(FParse::Param(FCommandLine::Get(),TEXT("DungeonWeaponOriginal"))) WeaponSize=96*HS;
 #endif
         Sprite(H->Equipment[0].Art(),Hand.X-Pivot.X*WeaponSize,Hand.Y-Pivot.Y*WeaponSize,
-            WeaponSize,WeaponSize,FLinearColor::White,Angle,Pivot);
+            WeaponSize,WeaponSize,Fade,Angle,Pivot);
+        // The right arm is on the far side in left/rear-left views. Never draw
+        // its handle across the near (left) arm or move the grip to that hand.
+        if(Behind) DrawBody();
         // Re-draw only the gripping fingers over the handle, never a second hero.
         if(auto* T=Texture(Name))
         {
             const auto TL=Origin+Pose(Socket-FVector2D(2.5f,2.5f))*HS,BR=Origin+Pose(Socket+FVector2D(2.5f,2.5f))*HS;
             DrawTexture(T,Offset.X+TL.X*Scale,Offset.Y+TL.Y*Scale,(BR.X-TL.X)*Scale,(BR.Y-TL.Y)*Scale,
-                (Socket.X-2.5f)/128.,(Socket.Y-2.5f)/128.,5.f/128,5.f/128,FLinearColor::White,BLEND_Translucent);
+                (Socket.X-2.5f)/128.,(Socket.Y-2.5f)/128.,5.f/128,5.f/128,Fade,BLEND_Translucent);
         }
     }
+    if(Behind&&H->Equipment[0].IsEmpty()) DrawBody();
     if(!H->Equipment[0].IsEmpty()&&H->IsAttacking()&&H->GetAttackProgress()>.25f&&H->GetAttackProgress()<.8f)
     {
         float Base=FMath::Atan2(A.Y,A.X);
@@ -856,7 +909,7 @@ void ADungeonHUD::Enemy(ADungeonEnemy* E)
         const bool Left=E->Facing==6;
         if(auto* T=Texture(FString::Printf(TEXT("FlashGuy_%d"),Frame)))
             DrawTexture(T,Offset.X+(P.X-Size*.5f)*Scale,Offset.Y+(P.Y-Size*116.f/128.f)*Scale,Size*Scale,Size*Scale,Left?1:0,0,Left?-1:1,1,Tint);
-        DrawStatus(P-FVector2D(0,Size+20),0,E->SlowTime,E->PoisonTime,E->BleedTime,false,E->MotionClock);
+        DrawStatus(P-FVector2D(0,Size+20),0,E->SlowTime,E->PoisonTime,E->BleedTime,E->FreedomImmuneTime>0,E->MotionClock);
         if(E->Action==2)
         {
             const float Side=Left?-1.f:1.f,Thrust=FMath::Sin((1-E->ActionTime/.5f)*PI)*18;
@@ -871,7 +924,7 @@ void ADungeonHUD::Enemy(ADungeonEnemy* E)
     {
         if(auto* T=Texture(FString::Printf(TEXT("ThemeEnemy_%d_%d"),E->Species,E->AnimationFrame())))
             DrawTexture(T,Offset.X+(P.X-Size/2)*Scale,Offset.Y+(P.Y-Size*116.f/128.f*Breath-Lift-StepBob)*Scale,Size*Scale,Size*Breath*Scale,E->Facing==3?1:0,0,E->Facing==3?-1:1,1,Tint);
-        DrawStatus(P-FVector2D(0,Size+22),0,E->SlowTime,E->PoisonTime,E->BleedTime,false,E->MotionClock);
+        DrawStatus(P-FVector2D(0,Size+22),0,E->SlowTime,E->PoisonTime,E->BleedTime,E->FreedomImmuneTime>0,E->MotionClock);
         Box(P.X-25,P.Y-Size*.82f-Lift,50,4,FLinearColor(.12f,.02f,.025f));
         Box(P.X-25,P.Y-Size*.82f-Lift,50*E->Health/E->MaxHealth,4,FLinearColor(.8f,.15f,.12f));return;
     }
@@ -892,7 +945,7 @@ void ADungeonHUD::Enemy(ADungeonEnemy* E)
             if(E->Action==3) Frame=T<.3f?18:E->FlashTime>0?19+(E->ShotSerial%2):22+int(E->MotionClock*12)%2;
         }
         Sprite(FString::Printf(TEXT("%s_%d_%d"),E->Species==28?TEXT("Mack"):TEXT("Twister"),E->Facing,Frame),P.X-Size/2,P.Y-Size*(E->Species==28?372.f/384.f:360.f/384.f)-Hop,Size,Size,Tint);
-        DrawStatus(P-FVector2D(0,Size+20),0,E->SlowTime,E->PoisonTime,E->BleedTime,false,E->MotionClock);
+        DrawStatus(P-FVector2D(0,Size+20),0,E->SlowTime,E->PoisonTime,E->BleedTime,E->FreedomImmuneTime>0,E->MotionClock);
         return;
     }
     KeySprite(E->Species==24?FString::Printf(TEXT("Finance_%d"),E->AnimationFrame()):FString::Printf(TEXT("Creature_%d_%d"),E->Species,E->AnimationFrame()),
@@ -906,7 +959,7 @@ void ADungeonHUD::Enemy(ADungeonEnemy* E)
         const auto Center=Mouth+Aim*(W*.35f);
         KeySprite(TEXT("TeaFX_4"),Center.X-W*.5f,Center.Y-H*.5f,W,H,FLinearColor::White,false,FMath::RadiansToDegrees(FMath::Atan2(Aim.Y,Aim.X)));
     }
-    DrawStatus(P-FVector2D(0,Size+32),0,E->SlowTime,E->PoisonTime,E->BleedTime,false,E->MotionClock);
+    DrawStatus(P-FVector2D(0,Size+32),0,E->SlowTime,E->PoisonTime,E->BleedTime,E->FreedomImmuneTime>0,E->MotionClock);
     if(!E->bBoss)
     {
         Box(P.X-25,P.Y-Size-2-Lift,50,4,FLinearColor(.12f,.02f,.025f));
@@ -941,23 +994,78 @@ void ADungeonHUD::DrawMenu(ADungeonGameMode* G)
     }
     float MX=-100,MY=-100; if(auto* PC=GetOwningPlayerController()) PC->GetMousePosition(MX,MY);
     const FVector2D Mouse=(FVector2D(MX,MY)-Offset)/Scale;
+    if(bVolumeDragging)
+    {
+        auto* PC=GetOwningPlayerController();
+        if(PC&&PC->IsInputKeyDown(EKeys::LeftMouseButton)) G->SetMasterVolume((Mouse.X-1070)/142.f,false);
+        else { bVolumeDragging=false; G->SetMasterVolume(G->GetMasterVolume()); }
+    }
+    auto AudioButton=[&](float X,const TCHAR* Art,const TCHAR* Tip,bool Muted)
+    {
+        const bool Hover=Mouse.X>=X&&Mouse.X<X+54&&Mouse.Y>=716&&Mouse.Y<772;
+        Sprite(Art,X,716,54,54,Muted?FLinearColor(.42f,.42f,.42f,1):Hover?FLinearColor(1.2f,1.2f,1.2f,1):FLinearColor::White);
+        if(Muted) DrawLine(Offset.X+(X+7)*Scale,Offset.Y+763*Scale,Offset.X+(X+47)*Scale,Offset.Y+723*Scale,FLinearColor(.85f,.18f,.1f,1),3*Scale);
+        if(Hover) Label(FString(Tip)+(Muted?TEXT(" OFF"):TEXT(" ON")),X-5,694,Gold,.75f);
+    };
+    AudioButton(900,TEXT("AudioMusic"),TEXT("MUSIC"),G->IsMusicMuted());
+    AudioButton(974,TEXT("AudioEffects"),TEXT("SFX"),G->AreEffectsMuted());
+    Sprite(TEXT("AudioRail"),1040,722,204,48);
+    Sprite(TEXT("AudioThumb"),1058+142*G->GetMasterVolume(),734,24,24);
+    if(bVolumeDragging||(Mouse.X>=1040&&Mouse.X<=1244&&Mouse.Y>=722&&Mouse.Y<=770))
+        Label(FString::Printf(TEXT("VOLUME %d%%"),FMath::RoundToInt(G->GetMasterVolume()*100)),1080,701,Gold,.75f);
+    FString CurrentHover;
     auto Button=[&](const TCHAR* Text,float Y)
     {
-        const bool Hover=Mouse.X>=150&&Mouse.X<=480&&Mouse.Y>=Y&&Mouse.Y<=Y+48;
+        const float Shift=FString(Text)==TEXT("BACK")?75.f:0.f;
+        const bool Hover=Mouse.X>=150+Shift&&Mouse.X<=480+Shift&&Mouse.Y>=Y&&Mouse.Y<=Y+48;
         FString Art=FString(Text).Replace(TEXT(" "),TEXT("_"));
-        Sprite(TEXT("Menu_")+Art,142,Y-14,346,76,Hover?FLinearColor(1.2f,1.2f,1.1f):FLinearColor::White);
+        float& Amount=MenuHoverAmounts.FindOrAdd(Art);
+        Amount=FMath::FInterpTo(Amount,Hover?1.f:0.f,GetWorld()->GetDeltaSeconds(),14.f);
+        const bool Pressed=Hover&&GetOwningPlayerController()->IsInputKeyDown(EKeys::LeftMouseButton);
+        const float Lift=Pressed?2.f:-2.f*Amount;
+        // Stable hit targets, with a subtle lift, warm highlight and emerald selection gems.
+        Sprite(TEXT("Menu_")+Art,142+Shift-5*Amount,Y-8+Lift,346+10*Amount,64,FLinearColor(1+.18f*Amount,1+.14f*Amount,1+.06f*Amount,1));
+        if(Amount>.01f)
+        {
+            const float Pulse=.85f+.15f*FMath::Sin(Time*4);
+            const FLinearColor Tint(1,1,1,Amount*Pulse);
+            Sprite(TEXT("AudioThumb"),121+Shift-3*Amount,Y+15+Lift,18,20,Tint);
+            Sprite(TEXT("AudioThumb"),491+Shift+3*Amount,Y+15+Lift,18,20,Tint);
+        }
+        if(Hover) CurrentHover=Art;
     };
     if(G->bShowControls)
     {
-        Box(118,372,460,357,Ink); Label(TEXT("HOW TO PLAY"),150,392,Gold,1.25f);
-        Label(TEXT("WASD    Move in screen directions"),150,436,Pale);
-        Label(TEXT("SHIFT    Sprint / twice walking speed"),150,467,Pale);
-        Label(TEXT("SPACE dodge  /  RMB throw tea (10s cooldown)"),150,498,Pale);
-        Label(TEXT("LMB strike / MMB FREEDOM after 15 kills"),150,529,Pale);
-        Label(TEXT("E    Choose ONE chest / enter a gate"),150,560,Pale);
-        Label(TEXT("I    Inventory & equipment     P    Pause"),150,591,Pale);
-        Label(TEXT("A different guardian awaits every fourth room."),150,629,Gold,.85f);
-        Button(TEXT("BACK"),666);
+        // One continuous frame: no independently stretched atlas edges or corner seams.
+        Box(100,335,580,438,FLinearColor(.006f,.009f,.006f,.82f));
+        auto Outline=[&](float X,float Y,float W,float H,FLinearColor C)
+        { Box(X,Y,W,1,C);Box(X,Y+H-1,W,1,C);Box(X,Y,1,H,C);Box(X+W-1,Y,1,H,C); };
+        Outline(100,335,580,438,Gold);
+        Outline(105,340,570,428,FLinearColor(.36f,.25f,.10f,.85f));
+        for(float X:{100.f,679.f})for(float Y:{335.f,772.f})
+            Sprite(TEXT("AudioThumb"),X-12,Y-14,24,28);
+        Sprite(TEXT("AudioThumb"),137,358,19,23);
+        Label(TEXT("HOW TO PLAY"),171,360,Gold,1.25f);
+        auto Row=[&](const TCHAR* Key,const TCHAR* Action,float Y)
+        {
+            // Quiet, high-contrast keycaps: decoration never crosses the lettering.
+            Box(140,Y-3,92,25,FLinearColor(.025f,.028f,.022f,1));
+            Outline(140,Y-3,92,25,FLinearColor(.55f,.41f,.20f,1));
+            float TW=0,TH=0;GetTextSize(Key,TW,TH,GEngine->GetMediumFont(),1.05f);
+            Label(Key,186-TW/2,Y+9.5f-TH/2,FLinearColor(1,.90f,.64f,1),1.05f);
+            Label(Action,260,Y+1,Pale,1.05f);
+        };
+        Row(TEXT("W A S D"),TEXT("Move in any direction"),398);
+        Row(TEXT("SHIFT"),TEXT("Sprint at twice walking speed"),427);
+        Row(TEXT("SPACE"),TEXT("Dodge / roll"),456);
+        Row(TEXT("LMB"),TEXT("Strike with your weapon"),485);
+        Row(TEXT("RMB"),TEXT("Throw tea  -  10s cooldown"),514);
+        Row(TEXT("MMB"),TEXT("FREEDOM  -  charge with 15 kills"),543);
+        Row(TEXT("E"),TEXT("Choose one chest / enter a gate"),572);
+        Row(TEXT("I"),TEXT("Open inventory & equipment"),601);
+        Row(TEXT("P"),TEXT("Pause / resume"),630);
+        Label(TEXT("A guardian awaits every THIRD room."),173,674,Gold,.9f);
+        Button(TEXT("BACK"),705);
     }
     else
     {
@@ -966,6 +1074,19 @@ void ADungeonHUD::DrawMenu(ADungeonGameMode* G)
         Button(G->HasRun()?TEXT("NEW RUN"):TEXT("EXIT"),524);
         if(G->HasRun()) Button(TEXT("EXIT"),588);
     }
+    if(CurrentHover!=HoveredMenuButton&&!CurrentHover.IsEmpty()) G->PlaySound(TEXT("UI"),.25f,1.15f);
+    HoveredMenuButton=CurrentHover;
+}
+void ADungeonHUD::DrawSwordCursor()
+{
+    auto* PC=GetOwningPlayerController();float X=0,Y=0;
+    if(!PC||!PC->GetMousePosition(X,Y)||X<0||Y<0||X>=Canvas->SizeX||Y>=Canvas->SizeY) return;
+    const FVector2D SavedOffset=Offset;const float SavedScale=Scale;
+    // Screen-space cursor ignores camera shake. The sword tip is the exact mouse hotspot.
+    Offset=FVector2D::ZeroVector;Scale=FMath::Clamp(SavedScale,.8f,1.5f);
+    const float W=52,TipX=64.f/128,TipY=5.f/128;
+    Sprite(TEXT("Loot_0"),X/Scale-W*TipX,Y/Scale-W*TipY,W,W,FLinearColor::White,-35,FVector2D(TipX,TipY));
+    Offset=SavedOffset;Scale=SavedScale;
 }
 void ADungeonHUD::InventoryClick()
 {
@@ -975,7 +1096,10 @@ void ADungeonHUD::InventoryClick()
     auto In=[&](float L,float T,float W,float Height){return P.X>=L&&P.X<L+W&&P.Y>=T&&P.Y<T+Height;};
     if(auto* G=Mode(this)) if(G->IsMenu())
     {
-        if(G->bShowControls) { if(In(150,666,330,45)) G->bShowControls=false; return; }
+        if(In(900,716,54,56)) { G->ToggleMusic(); return; }
+        if(In(974,716,54,56)) { G->ToggleEffects(); return; }
+        if(In(1040,722,204,48)) { bVolumeDragging=true; G->SetMasterVolume((P.X-1070)/142.f); return; }
+        if(G->bShowControls) { if(In(225,705,330,48)) G->bShowControls=false; return; }
         if(In(150,396,330,48)) { if(G->HasRun()) G->ToggleMenu(); else G->StartGame(); }
         if(In(150,460,330,48)) G->bShowControls=true;
         if(In(150,524,330,48)) { if(G->HasRun()) G->StartGame(); else UKismetSystemLibrary::QuitGame(this,PC,EQuitPreference::Quit,false); }
@@ -1087,6 +1211,7 @@ void ADungeonHUD::DrawHUD()
     Super::DrawHUD();
     UpdateFlashScreen();
     auto* G=Mode(this); auto* H=Player(this); if(!G||!H||!Canvas) return;
+    ON_SCOPE_EXIT { DrawSwordCursor(); };
     if(Textures.IsEmpty())
     {
         LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/Art/V2/M_KeySprite.M_KeySprite"));
@@ -1095,11 +1220,11 @@ void ADungeonHUD::DrawHUD()
         for(int S=31;S<=48;++S)for(int F=0;F<8;++F)Texture(FString::Printf(TEXT("ThemeEnemy_%d_%d"),S,F));
         for(int F=0;F<16;++F)Texture(FString::Printf(TEXT("FlashGuy_%d"),F));
         for(int S=0;S<28;++S) for(int F=0;F<8;++F) Texture(FString::Printf(TEXT("Creature_%d_%d"),S,F));
+        for(int D=0;D<8;++D)Texture(FString::Printf(TEXT("Athletic_Idle_%d"),D));
         for(int D=0;D<4;++D) for(int F=0;F<8;++F)
-            for(const auto* Prefix:{TEXT(""),TEXT("Sentinel_"),TEXT("Verdant_"),TEXT("Warden_")})
-                Texture(FString::Printf(TEXT("Tea_%sRoll_%d_%d"),Prefix,D,F));
+            Texture(FString::Printf(TEXT("Athletic_Roll_%d_%d"),D,F));
         for(const auto& State:{TEXT("Walk"),TEXT("Attack")}) for(const auto& Group:{TEXT("Cardinal"),TEXT("Diagonal")})
-            for(int R=0;R<4;++R) for(int F=0;F<6;++F) Texture(FString::Printf(TEXT("%s%s_%d_%d"),State,Group,R,F));
+            for(int R=0;R<4;++R) for(int F=0;F<6;++F) Texture(FString::Printf(TEXT("Athletic_%s%s_%d_%d"),State,Group,R,F));
         for(int R=0;R<4;++R) for(int F=0;F<4;++F)
         { Texture(FString::Printf(TEXT("EnemyWalk_%d_%d"),R,F)); Texture(FString::Printf(TEXT("EnemyAttack_%d_%d"),R,F)); }
         for(int R=0;R<2;++R) for(int F=0;F<4;++F) Texture(FString::Printf(TEXT("BossMotion_%d_%d"),R,F));
@@ -1118,6 +1243,21 @@ void ADungeonHUD::DrawHUD()
     Sprite(G->GetBiome()==0?TEXT("Arena"):FString::Printf(TEXT("Arena%d"),G->GetBiome()),0,0,1280,800);
     if(G->IsBossIntroActive()){DrawBossIntro(G);return;}
 #if !UE_BUILD_SHIPPING
+    if(FParse::Param(FCommandLine::Get(),TEXT("DungeonHeroReviewPreview")))
+    {
+        int Group=0;FParse::Value(FCommandLine::Get(),TEXT("DungeonBiome="),Group);
+        Box(0,0,1280,800,FLinearColor(.035f,.045f,.05f,1));
+        const auto Position=H->GetActorLocation();H->HurtTime=0;
+        Label(Group>=2?TEXT("ATHLETIC HERO / WALK / HAND ANCHORS"):TEXT("ATHLETIC HERO / ATTACK / HAND ANCHORS"),30,15,Gold);
+        for(int R=0;R<4;++R)for(int F=0;F<6;++F)
+        {
+            const int D=(Group%2)*4+R;
+            H->SetActorLocation(DungeonView::Unproject(FVector2D(130+F*207,195+R*193)));
+            if(Group>=2)H->SetWalkReviewPose(D,F);else H->SetReviewPose(D,F);
+            Hero(H,1.25f);Label(FString::Printf(TEXT("D%d / F%d"),D,F),75+F*207,198+R*193,Pale,.75f);
+        }
+        H->SetActorLocation(Position);return;
+    }
     if(FParse::Param(FCommandLine::Get(),TEXT("DungeonHealthBarsPreview"))&&!G->GetEnemies().IsEmpty())
     {
         auto* E=G->GetEnemies()[0].Get();
@@ -1178,7 +1318,7 @@ void ADungeonHUD::DrawHUD()
     {
         Box(0,0,1280,800,Ink); Label(TEXT("DODGE / EIGHT POSES / FOUR DIRECTIONS"),30,18,Gold);
         for(int D=0;D<4;++D) for(int F=0;F<8;++F)
-            KeySprite(FString::Printf(TEXT("Tea_Roll_%d_%d"),D,F),16+F*156,58+D*181,146,146,FLinearColor::White);
+            Sprite(FString::Printf(TEXT("Athletic_Roll_%d_%d"),D,F),16+F*156,58+D*181,146,146,FLinearColor::White);
         return;
     }
     if(FParse::Param(FCommandLine::Get(),TEXT("DungeonFXPreview")))
@@ -1373,8 +1513,7 @@ void ADungeonHUD::DrawHUD()
     if(G->IsTransitioning())
     {
         const float T=G->TransitionProgress();
-        Box(0,0,1280,800,FLinearColor(0,0,0,FMath::Clamp((T-.45f)/.45f,0.f,1.f)));
-        if(T>.5f) Label(TEXT("DESCENDING TO THE NEXT CHAMBER"),440,370,Gold,1.2f);
+        Box(0,0,1280,800,FLinearColor(0,0,0,DungeonDescent::Blackout(T)));
     }
 }
 

@@ -46,7 +46,7 @@ void ADungeonGameMode::StartTransition(int32 Door)
 {
     if(HasEnding()) return;
     if(!bLootClaimed||TransitionTime>0||!Enemies.IsEmpty()||PendingSpawns>0) return;
-    TransitionDoor=FMath::Clamp(Door,0,2); TransitionTime=2.f; Shots.Empty(); Splashes.Empty();
+    TransitionDoor=FMath::Clamp(Door,0,2); TransitionTime=DungeonDescent::Duration; Shots.Empty(); Splashes.Empty();
     PlaySound(TEXT("Portal"));
     if(auto* H=Cast<ADungeonHero>(UGameplayStatics::GetPlayerPawn(this,0))) TransitionFrom=DungeonView::Project(H->GetActorLocation());
 }
@@ -57,7 +57,7 @@ void ADungeonEnemy::Tick(float Dt)
     auto* H=Cast<ADungeonHero>(UGameplayStatics::GetPlayerPawn(this,0));
     if(!G||G->IsGameplayBlocked()||!H||H->IsInventoryOpen()||H->Health<=0||Health<=0) return;
     const auto& S=DungeonRoster::Get(Species);
-    HurtTime=FMath::Max(0.f,HurtTime-Dt); bWalking=false;
+    HurtTime=FMath::Max(0.f,HurtTime-Dt); FreedomImmuneTime=FMath::Max(0.f,FreedomImmuneTime-Dt); bWalking=false;
     UpdateAilments(Dt); if(Health<=0||IsActorBeingDestroyed()) return;
     MotionClock+=Dt;
     HealthLag=HealthLag<=0?Health:FMath::Max(Health,HealthLag-Dt*MaxHealth*.3f);
@@ -300,10 +300,10 @@ void ADungeonGameMode::VerifyCampaign()
     for(bool Seen:SeenLoot) Check(Seen,TEXT("Mystery pool includes all weapons, armor and amulets"));
     for(int I=0;I<30;++I) Check(RollChestLoot(true).Rarity==4,TEXT("Boss mystery loot remains legendary"));
     H->MoveRight(1); H->SprintPressed(); H->Tick(.1f); H->MoveRight(0); H->SprintReleased();
-    Check(FMath::IsNearlyEqual(H->Stamina,97.5f),TEXT("Sprint drains stamina"));
+    Check(FMath::IsNearlyEqual(H->Stamina,98.2f),TEXT("Sprint drains stamina"));
     const float IdleStamina=H->Stamina; H->SprintPressed(); H->Tick(.1f); H->SprintReleased();
     Check(H->Stamina==IdleStamina,TEXT("Stationary shift does not consume stamina"));
-    H->Restart(); H->Dodge(); Check(H->Stamina==70,TEXT("Dodge costs thirty stamina"));
+    H->Restart(); H->Dodge(); Check(H->Stamina==78,TEXT("Dodge costs twenty-two stamina"));
     H->Restart(); H->SpendStamina(100); H->Dodge();
     Check(H->bExhausted&&!H->IsRolling(),TEXT("Empty stamina blocks dodge"));
     const auto ExhaustedStart=DungeonView::Project(H->GetActorLocation());
@@ -313,7 +313,7 @@ void ADungeonGameMode::VerifyCampaign()
     ToggleMenu(); const float PausedStamina=H->Stamina; H->Tick(10); ToggleMenu();
     Check(H->Stamina==PausedStamina,TEXT("Menu pauses stamina regeneration"));
     H->Tick(4.f); Check(!H->bExhausted&&H->Stamina==100,TEXT("Full refill unlocks mobility"));
-    H->Restart(); H->Stamina=29; H->Dodge(); Check(!H->IsRolling()&&H->Stamina==29,TEXT("Insufficient dodge cost rejected"));
+    H->Restart(); H->Stamina=21; H->Dodge(); Check(!H->IsRolling()&&H->Stamina==21,TEXT("Insufficient dodge cost rejected"));
     H->Restart();
     FDungeonPotion TestPotion; TestPotion.Position=DungeonView::Project(H->GetActorLocation()); Potions.Add(TestPotion);
     UpdatePotions(1); Check(Potions.Num()==1,TEXT("Full health preserves potion"));
@@ -418,7 +418,7 @@ void ADungeonGameMode::VerifyCampaign()
         PlayerInteract(H); Check(H->Inventory.Num()==1,TEXT("No second chest reward"));
         TransitionCooldown=0; H->SetActorLocation(DungeonView::Unproject(DoorPosition(Choice))); PlayerInteract(H);
         Check(IsTransitioning()&&Room==R,TEXT("Gate starts transition, not instant teleport"));
-        Tick(2.1f); Check(Room==R+1&&!IsTransitioning()&&Potions.IsEmpty(),TEXT("Transition finishes and clears old potions"));
+        Tick(DungeonDescent::Duration+.1f); Check(Room==R+1&&!IsTransitioning()&&Potions.IsEmpty(),TEXT("Transition finishes and clears old potions"));
     }
     H->Inventory.Empty(); for(int I=0;I<18;++I) Check(H->AddToInventory(MakeItem(0,0)),TEXT("Weapon bag capacity"));
     Check(!H->AddToInventory(MakeItem(0,0))&&H->EquipFromInventory(0),TEXT("Full bag swaps safely"));
@@ -500,7 +500,7 @@ void ADungeonGameMode::VerifyCampaign()
     const float BeforeFreedomHealth=H->Health; H->ReceiveHit(10000);
     Check(H->Health==BeforeFreedomHealth,TEXT("Freedom protects player"));
     UpdateFreedom(1.5f);
-    Check(Enemies.IsEmpty()&&PendingSpawns==0&&bChest,TEXT("Freedom clears queued waves and reveals chests"));
+    Check(PendingSpawns>0&&!bChest,TEXT("Freedom preserves queued enemies and does not award an early chest"));
     Check(FreedomKills==0,TEXT("Freedom kills cannot recharge itself"));
     UpdateFreedom(10.f); Check(!IsFreedomActive(),TEXT("Freedom ends even with a long frame"));
     RestartRun(); Check(FreedomKills==0&&Blood.IsEmpty(),TEXT("Restart clears combat effect state"));

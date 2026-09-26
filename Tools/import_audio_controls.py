@@ -1,0 +1,15 @@
+import unreal
+from pathlib import Path
+root=Path(unreal.Paths.project_dir())
+for name in ['AudioMusic','AudioEffects','AudioRail','AudioThumb']:
+    task=unreal.AssetImportTask();task.filename=str(root/'Content/Art/V2'/f'{name}.png')
+    task.destination_path='/Game/Art/V2';task.automated=True;task.replace_existing=True;task.save=True
+    unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
+    asset=unreal.load_asset('/Game/Art/V2/'+name);assert asset
+    asset.set_editor_property('filter',unreal.TextureFilter.TF_NEAREST)
+    asset.set_editor_property('mip_gen_settings',unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
+    asset.set_editor_property('compression_settings',unreal.TextureCompressionSettings.TC_EDITOR_ICON)
+    asset.set_editor_property('never_stream',True)
+    asset.set_editor_property('lod_group',unreal.TextureGroup.TEXTUREGROUP_UI)
+    unreal.EditorAssetLibrary.save_loaded_asset(asset)
+unreal.log('AUDIO_CONTROLS_IMPORTED')

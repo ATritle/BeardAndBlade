@@ -1,4 +1,5 @@
 #include "DungeonActors.h"
+#include "DungeonCombatBalance.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Texture2D.h"
 
@@ -9,7 +10,7 @@ void ADungeonHero::SpendStamina(float Amount)
 }
 void ADungeonHero::UpdateStamina(float Dt,bool Sprinting)
 {
-    if(Sprinting) { SpendStamina(25.f*Dt); return; }
+    if(Sprinting) { SpendStamina(DungeonCombatBalance::SprintCost*Dt); return; }
     const float RegenTime=FMath::Max(0.f,Dt-StaminaDelay);
     StaminaDelay=FMath::Max(0.f,StaminaDelay-Dt);
     Stamina=FMath::Min(MaxStamina,Stamina+25.f*StaminaRegen*RegenTime);

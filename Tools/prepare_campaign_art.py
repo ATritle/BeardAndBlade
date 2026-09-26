@@ -35,7 +35,7 @@ def body_bounds(mask):
         if len(component)>len(largest): largest=component
     yy,xx=zip(*largest)
     return min(xx),min(yy),max(xx)+1,max(yy)+1
-def split(source,prefix,base=0,roll=False):
+def split(source,prefix,base=0,roll=False,size=128,rows=None):
     im=Image.open(src/source).convert('RGB')
     assert im.size==(1536,1024),(source,im.size)
     corner=im.getpixel((0,0)); assert corner[0]>180 and corner[2]>180 and corner[1]<70,(source,'not chroma keyed',corner)
@@ -43,6 +43,7 @@ def split(source,prefix,base=0,roll=False):
     # Generated atlases have visual gutters, not exact equal-height rows.
     ys=[0]+[gutter(mask.sum(axis=1),y,80) for y in [256,512,768]]+[1024]
     for row in range(4):
+        if rows is not None and row not in rows: continue
         frames=[]
         band=mask[ys[row]+10:ys[row+1]-10,:]
         xs=[0]+[gutter(band.sum(axis=0),x,30) for x in range(192,1536,192)]+[1536]
@@ -58,10 +59,10 @@ def split(source,prefix,base=0,roll=False):
             yy,xx=np.where(cell_mask)
             assert len(xx)>80,(source,row,col,'empty')
             frames.append(cell.crop(body_bounds(cell_mask)))
-        scale=min(96/max(f.height for f in frames),112/max(f.width for f in frames))
+        scale=min(size*.75/max(f.height for f in frames),size*.875/max(f.width for f in frames))
         for col,f in enumerate(frames):
             f=f.resize((max(1,round(f.width*scale)),max(1,round(f.height*scale))),Image.Resampling.NEAREST)
-            out=Image.new('RGB',(128,128),(255,0,255));out.paste(f,((128-f.width)//2,116-f.height))
+            out=Image.new('RGB',(size,size),(255,0,255));out.paste(f,((size-f.width)//2,round(size*116/128)-f.height))
             name=f'{prefix}_{row if roll else base+row}_{col}'
             out.save(dst/(name+'.png'));manifest.append(name)
 if __name__=='__main__':

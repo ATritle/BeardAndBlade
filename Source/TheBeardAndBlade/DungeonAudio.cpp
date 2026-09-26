@@ -21,26 +21,30 @@ void ADungeonGameMode::PlaySound(const FString& Name,float Volume,float Pitch)
     LastSoundTime.Add(Name,Now);
     auto& Sound=Sounds.FindOrAdd(Name);
     if(!Sound) Sound=LoadObject<USoundBase>(nullptr,*FString::Printf(TEXT("/Game/Audio/%s.%s"),*Name,*Name));
-    if(Sound) UGameplayStatics::PlaySound2D(this,Sound,.48f*Volume,Pitch);
+    if(Sound) UGameplayStatics::PlaySound2D(this,Sound,.48f*Volume*MasterVolume,Pitch);
 }
 void ADungeonGameMode::UpdateAudio()
 {
-    const FString Next=(bMenu||HasEnding())?TEXT("MusicMenu"):IsBossRoom()?TEXT("MusicBoss"):TEXT("MusicDungeon");
-    if(Next==MusicName) return;
+    const FString Next=HasEnding()?TEXT("MusicEnding"):bMenu?TEXT("MusicMenu"):IsBossRoom()?TEXT("MusicBoss"):TEXT("MusicDungeon");
+    if(Next==MusicName&&IsValid(MusicComponent)&&MusicComponent->IsPlaying()) return;
     MusicName=Next;
-    if(MusicComponent) { MusicComponent->FadeOut(.7f,0); MusicComponent=nullptr; }
+    if(IsValid(MusicComponent)) { MusicComponent->bAutoDestroy=true; MusicComponent->FadeOut(.7f,0); }
+    MusicComponent=nullptr;
+    if(bMusicMuted||MasterVolume<=0) return;
     auto& Sound=Sounds.FindOrAdd(Next);
     if(!Sound) Sound=LoadObject<USoundBase>(nullptr,*FString::Printf(TEXT("/Game/Audio/%s.%s"),*Next,*Next));
     if(Sound)
     {
-        MusicComponent=UGameplayStatics::CreateSound2D(this,Sound,1.f,1.f,0,nullptr,false,true);
-        if(MusicComponent) MusicComponent->FadeIn(1.2f,bMusicMuted?0.f:.23f);
+        MusicComponent=UGameplayStatics::CreateSound2D(this,Sound,.23f*MasterVolume,1.f,0,nullptr,false,false);
+        if(MusicComponent) MusicComponent->FadeIn(1.2f,1.f);
     }
 }
 void ADungeonGameMode::ToggleMusic()
 {
     bMusicMuted=!bMusicMuted;
-    if(MusicComponent) MusicComponent->AdjustVolume(.2f,bMusicMuted?0.f:.23f);
+    // AdjustVolume(...,0) finishes playback in UE. Pause instead, preserving the track.
+    if(IsValid(MusicComponent)) MusicComponent->SetPaused(bMusicMuted||MasterVolume<=0);
+    if(!bMusicMuted&&MasterVolume>0) UpdateAudio();
     GConfig->SetBool(TEXT("DungeonAudio"),TEXT("MuteMusic"),bMusicMuted,GGameUserSettingsIni);GConfig->Flush(false,GGameUserSettingsIni);
 }
 void ADungeonGameMode::ToggleEffects()
@@ -49,12 +53,41 @@ void ADungeonGameMode::ToggleEffects()
     GConfig->SetBool(TEXT("DungeonAudio"),TEXT("MuteEffects"),bEffectsMuted,GGameUserSettingsIni);GConfig->Flush(false,GGameUserSettingsIni);
     if(!bEffectsMuted) PlaySound(TEXT("UI"));
 }
+void ADungeonGameMode::SetMasterVolume(float Value,bool Save)
+{
+    MasterVolume=FMath::Clamp(Value,0.f,1.f);
+    if(IsValid(MusicComponent))
+    {
+        MusicComponent->SetPaused(bMusicMuted||MasterVolume<=0);
+        MusicComponent->SetVolumeMultiplier(.23f*MasterVolume);
+    }
+    if(!bMusicMuted&&MasterVolume>0) UpdateAudio();
+    if(Save) { GConfig->SetFloat(TEXT("DungeonAudio"),TEXT("Volume"),MasterVolume,GGameUserSettingsIni); GConfig->Flush(false,GGameUserSettingsIni); }
+}
 void ADungeonHero::ToggleMusic() { if(auto* G=Cast<ADungeonGameMode>(UGameplayStatics::GetGameMode(this))) G->ToggleMusic(); }
 void ADungeonHero::ToggleEffects() { if(auto* G=Cast<ADungeonGameMode>(UGameplayStatics::GetGameMode(this))) G->ToggleEffects(); }
 
 // Explicit unattended release check; absent this flag it never alters gameplay.
 void ADungeonGameMode::RunPackagedSmokeTest()
 {
+    if(FParse::Param(FCommandLine::Get(),TEXT("AudioToggleVerify")))
+    {
+        static int Stage=0,Errors=0; static bool SavedMute=false; static float SavedVolume=1;
+        const float T=GetWorld()->GetTimeSeconds();
+        if(Stage==0&&T>2) { SavedMute=bMusicMuted;SavedVolume=MasterVolume;bMusicMuted=false;SetMasterVolume(1,false);++Stage; }
+        else if(Stage==1&&T>3) { ToggleMusic();++Stage; }
+        else if(Stage==2&&T>4) { if(!IsValid(MusicComponent)||!MusicComponent->bIsPaused)++Errors;ToggleMusic();++Stage; }
+        else if(Stage==3&&T>5) { if(!IsValid(MusicComponent)||!MusicComponent->IsPlaying()||MusicComponent->bIsPaused)++Errors;SetMasterVolume(0,false);++Stage; }
+        else if(Stage==4&&T>6) { SetMasterVolume(.5f,false);++Stage; }
+        else if(Stage==5&&T>7)
+        {
+            if(!IsValid(MusicComponent)||!MusicComponent->IsPlaying()||MusicComponent->bIsPaused||!FMath::IsNearlyEqual(MusicComponent->VolumeMultiplier,.115f))++Errors;
+            bMusicMuted=SavedMute;SetMasterVolume(SavedVolume);
+            GConfig->SetBool(TEXT("DungeonAudio"),TEXT("MuteMusic"),SavedMute,GGameUserSettingsIni);GConfig->Flush(false,GGameUserSettingsIni);
+            UE_LOG(LogTemp,Display,TEXT("AUDIO_TOGGLE_VERIFY errors=%d"),Errors);++Stage;FPlatformMisc::RequestExitWithStatus(false,Errors?1:0);
+        }
+        return;
+    }
     if(FParse::Param(FCommandLine::Get(),TEXT("DungeonFreedomPreview")))
     {
         static int Step=0; const float T=GetWorld()->GetTimeSeconds();

@@ -1,4 +1,5 @@
 #include "DungeonActors.h"
+#include "DungeonCombatBalance.h"
 #include "Kismet/GameplayStatics.h"
 
 void ADungeonHero::Freedom()
@@ -24,13 +25,15 @@ void ADungeonGameMode::UpdateFreedom(float Dt)
     // Resolve once, during the sweep. Snapshot protects against death callbacks mutating Enemies.
     if(!bFreedomResolved&&Remaining<=1.65f)
     {
-        bFreedomResolved=true; PendingSpawns=0; Wave=2; Shots.Empty();
+        bFreedomResolved=true; Shots.Empty();
         PlaySound(TEXT("Explosion"),1.f);
         const auto Victims=Enemies;
         for(auto& E:Victims) if(IsValid(E))
         {
+            if(E->bBoss) { E->FreedomImmuneTime=2.5f; continue; }
+            const float Damage=DungeonCombatBalance::FreedomDamage(E->Health,E->MaxHealth,false);
             E->SpawnTime=0;
-            E->TakeDungeonDamage(E->Health+1.f);
+            E->TakeDungeonDamage(Damage);
         }
         CompleteRoom();
     }

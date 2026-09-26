@@ -2,7 +2,11 @@
 
 StreamPixel hosts Unreal Pixel Streaming on a remote GPU and sends video, audio, and player input through the browser. It is separate from GitHub download hosting.
 
-The v0.3.1 Windows download is not yet a streaming build. Prepare a separate package before uploading:
+Both v0.3.2 archives use the same Pixel Streaming-enabled Shipping build under `Builds/v0.3.2/Windows`.
+
+Upload `Builds/TheBeardAndBlade-StreamPixel-v0.3.2.zip`. Its outer folder is `Windows`, containing the launcher and all runtime content. Use this upload archive rather than the GitHub source-code ZIP or offline-layout ZIP.
+
+Build/rebuild procedure:
 
 1. In Unreal Editor, enable **Pixel Streaming** in Edit > Plugins and restart. StreamPixel supports Pixel Streaming and Pixel Streaming 2, recommends the original plugin, and requires only one to be enabled. Confirm the hosting configuration supports UE 5.8.
 2. Package a fresh Windows Shipping build with the plugin enabled. ZIP the complete packaged Windows folder, including the executable and all content, not the source project or just the EXE.
@@ -16,4 +20,17 @@ Official references:
 - https://docs.streampixel.io/resources/quick-start-guide/uploading-your-build
 - https://docs.streampixel.io/resources/quick-start-guide/sharing-and-embedding
 
-No StreamPixel deployment or paid hosting changes were made as part of the Windows v0.3.1 release.
+The user uploads and activates this build. No StreamPixel deployment or paid hosting changes are performed by the packaging process.
+
+## Reproduce the streaming package
+
+With PixelStreaming enabled in the project (not PixelStreaming2), close Unreal Editor and run:
+
+```powershell
+./Tools/package_windows.ps1 -Destination "$PWD/Builds/v0.3.2"
+python Tools/zip_release.py --version v0.3.2 --streaming
+```
+
+These commands refuse to overwrite existing archives; choose a fresh destination/version for a rebuild.
+
+No signalling URL, token or hosting credentials are baked into the game. StreamPixel manages the signalling connection and launch configuration. If its dashboard asks for the executable, select `Windows/TheBeardAndBlade.exe` relative to the ZIP. Confirm UE 5.8 support with StreamPixel if its engine selector does not list that version. Browser end-to-end validation must be performed after upload; local executable smoke tests do not verify the hosted WebRTC connection.

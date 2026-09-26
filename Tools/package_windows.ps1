@@ -1,6 +1,6 @@
 param([string]$Engine='C:/Program Files/Epic Games/UE_5.8',[string]$Destination='')
 $projectRoot=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-if(!$Destination) { $Destination=Join-Path $projectRoot 'Builds/v0.3.1' }
+if(!$Destination) { $Destination=Join-Path $projectRoot 'Builds/v0.3.2' }
 if(Test-Path (Join-Path $Destination 'Windows')) { throw 'Choose a fresh archive destination to avoid shipping leftover files from older builds.' }
 $env:uebp_EngineSavedFolder=Join-Path $projectRoot 'Saved/Automation'
 # Cook and UnrealPak must use the same Zen store, including child processes.

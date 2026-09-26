@@ -4,7 +4,7 @@ A Windows pixel-art dungeon crawler built with Unreal Engine 5.8.
 
 ## Play
 
-Download `TheBeardAndBlade-Windows-v0.3.1.zip` from [Releases](https://github.com/ATritle/TheBeardAndBlade/releases). Extract the **entire ZIP** and launch `TheBeardAndBlade/TheBeardAndBlade.exe`. Unreal Editor is not required. The automatic GitHub source ZIP is not playable.
+Download `TheBeardAndBlade-Windows-v0.3.2.zip` from [Releases](https://github.com/ATritle/TheBeardAndBlade/releases). Extract the **entire ZIP** and launch `TheBeardAndBlade/TheBeardAndBlade.exe`. Unreal Editor is not required. The automatic GitHub source ZIP is not playable. A separate `TheBeardAndBlade-StreamPixel-v0.3.2.zip` contains the same Pixel Streaming-enabled runtime in the hosting upload layout.
 
 Windows x64 with a compatible DirectX graphics driver is required. Keep the supporting folders beside the EXE. If prerequisites are missing, run the bundled installer under `Engine/Extras/Redist/en-us` inside the extracted game folder. This is an unsigned playtest, not a browser, macOS or Linux build.
 

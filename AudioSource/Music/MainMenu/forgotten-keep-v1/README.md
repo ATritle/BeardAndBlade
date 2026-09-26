@@ -5,7 +5,7 @@ Source file: kaazoom-the-forgotten-keep-night-version-full-version-572748.mp3
 Artist/title supplied by user: Kaazoom - The Forgotten Keep (Night Version, Full Version).
 
 ## Status
-Original MP3 uploaded unchanged. Conversion has NOT been performed: this work PC has no available FFmpeg or audio decoding library. No Unreal asset or game code has been changed. This upload does not change an existing packaged release.
+Original MP3 is preserved unchanged. The local weekend update converts it to 48kHz stereo 16-bit PCM and imports /Game/Audio/MusicMenu, retaining the full 132.54-second duration with a 1.5-second opening fade and 3-second ending fade (starting at 129.5s). The track loops with a soft fade boundary, not a beat-matched seamless edit. /Game/Audio/MusicEnding preserves the previous synthesized score separately. Asset checks pass; a full listening review remains pending. Existing published releases and StreamPixel deployments are unchanged.
 Source licensing/attribution documentation was not supplied with the file; keep any download-page license or certificate with the project.
 
 ## Convert on home PC
